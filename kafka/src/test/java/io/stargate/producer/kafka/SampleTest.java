@@ -1,13 +1,13 @@
 package io.stargate.producer.kafka;
 
-import org.junit.jupiter.api.Test;
-
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+
+import org.junit.jupiter.api.Test;
 
 public class SampleTest {
 
-	@Test
-	void shouldAddTwoNumbers(){
-		assertThat(1+1).isEqualTo(2);
-	}
+  @Test
+  void shouldAddTwoNumbers() {
+    assertThat(1 + 1).isEqualTo(2);
+  }
 }
