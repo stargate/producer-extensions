@@ -23,5 +23,8 @@
 hs_err_pid*
 
 # Ignore .idea files
-.idea/
 *.iml
+.idea/
+*.class
+bin/
+build/
