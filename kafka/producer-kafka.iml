@@ -12,6 +12,11 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="library" name="Maven: org.apache.kafka:kafka-clients:2.6.0" level="project" />
+    <orderEntry type="library" name="Maven: com.github.luben:zstd-jni:1.4.4-7" level="project" />
+    <orderEntry type="library" name="Maven: org.lz4:lz4-java:1.7.1" level="project" />
+    <orderEntry type="library" name="Maven: org.xerial.snappy:snappy-java:1.1.7.3" level="project" />
+    <orderEntry type="library" name="Maven: org.slf4j:slf4j-api:1.7.30" level="project" />
     <orderEntry type="library" scope="PROVIDED" name="Maven: org.immutables:value:2.8.8" level="project" />
     <orderEntry type="library" scope="PROVIDED" name="Maven: io.stargate.db:persistence-api:0.0.7" level="project" />
     <orderEntry type="library" scope="PROVIDED" name="Maven: net.nicoulaj.compile-command-annotations:compile-command-annotations:1.2.3" level="project" />
@@ -42,7 +47,6 @@
     <orderEntry type="library" name="Maven: io.dropwizard.metrics:metrics-core:3.2.6" level="project" />
     <orderEntry type="library" name="Maven: info.ganglia.gmetric4j:gmetric4j:1.0.7" level="project" />
     <orderEntry type="library" name="Maven: org.acplt:oncrpc:1.0.7" level="project" />
-    <orderEntry type="library" name="Maven: org.slf4j:slf4j-api:1.7.22" level="project" />
     <orderEntry type="library" name="Maven: io.dropwizard.metrics:metrics-graphite:4.1.2" level="project" />
     <orderEntry type="library" name="Maven: com.rabbitmq:amqp-client:5.5.3" level="project" />
     <orderEntry type="library" name="Maven: com.google.auto.factory:auto-factory:1.0-beta7" level="project" />
@@ -114,6 +118,7 @@
     <orderEntry type="library" scope="TEST" name="Maven: com.kohlschutter.junixsocket:junixsocket-common:2.0.4" level="project" />
     <orderEntry type="library" scope="TEST" name="Maven: net.java.dev.jna:jna-platform:5.5.0" level="project" />
     <orderEntry type="library" scope="TEST" name="Maven: net.java.dev.jna:jna:5.5.0" level="project" />
+    <orderEntry type="library" scope="TEST" name="Maven: org.assertj:assertj-core:3.17.2" level="project" />
     <orderEntry type="library" scope="PROVIDED" name="Maven: org.osgi:org.osgi.core:6.0.0" level="project" />
   </component>
 </module>
