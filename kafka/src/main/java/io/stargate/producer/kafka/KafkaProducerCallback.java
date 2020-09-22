@@ -15,14 +15,18 @@
  */
 package io.stargate.producer.kafka;
 
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import org.apache.kafka.clients.producer.Callback;
+import org.apache.kafka.clients.producer.RecordMetadata;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.junit.jupiter.api.Test;
+public class KafkaProducerCallback implements Callback {
+  private static final Logger LOG = LoggerFactory.getLogger(KafkaProducerCallback.class);
 
-public class SampleTest {
-
-  @Test
-  void shouldAddTwoNumbers() {
-    assertThat(1 + 1).isEqualTo(2);
+  @Override
+  public void onCompletion(RecordMetadata recordMetadata, Exception e) {
+    if (e != null) {
+      LOG.error("Problem when sending the: " + recordMetadata, e);
+    }
   }
 }

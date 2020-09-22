@@ -13,16 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.stargate.producer.kafka;
+package io.stargate.producer.kafka.schema;
 
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import org.apache.avro.Schema;
 
-import org.junit.jupiter.api.Test;
+public interface SchemaProvider {
 
-public class SampleTest {
+  /** Returns the avro partition key schema for kafka topic name */
+  Schema getKeySchemaForTableMetadata(String topicName);
 
-  @Test
-  void shouldAddTwoNumbers() {
-    assertThat(1 + 1).isEqualTo(2);
-  }
+  /** Returns the avro value schema for kafka topic name */
+  Schema getValueSchemaForTableMetadata(String topicName);
 }

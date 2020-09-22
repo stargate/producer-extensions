@@ -13,16 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.stargate.producer.kafka;
+package io.stargate.producer.kafka.mapping;
 
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import org.apache.cassandra.stargate.schema.TableMetadata;
 
-import org.junit.jupiter.api.Test;
+public interface MappingService {
+  /** returns the topic name for TableMetadata (keyspace.tableName) */
+  String topicNameFromTableMetadata(TableMetadata tableMetadata);
 
-public class SampleTest {
-
-  @Test
-  void shouldAddTwoNumbers() {
-    assertThat(1 + 1).isEqualTo(2);
-  }
+  /** return field name from table that should be used as the partition key */
+  String getPartitionKeyName(TableMetadata table);
 }
