@@ -17,8 +17,8 @@ package io.stargate.producer.kafka;
 
 import com.google.common.collect.Streams;
 import io.stargate.db.cdc.SchemaAwareCDCProducer;
-import io.stargate.producer.kafka.converters.future.CompletablePromise;
 import io.stargate.producer.kafka.mapping.MappingService;
+import io.stargate.producer.kafka.producer.CompletableKafkaProducer;
 import io.stargate.producer.kafka.schema.SchemaProvider;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +34,6 @@ import org.apache.cassandra.stargate.db.MutationEvent;
 import org.apache.cassandra.stargate.db.RowMutationEvent;
 import org.apache.cassandra.stargate.schema.ColumnMetadata;
 import org.apache.cassandra.stargate.schema.TableMetadata;
-import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.jetbrains.annotations.NotNull;
 
@@ -44,7 +43,7 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
 
   private final SchemaProvider schemaProvider;
 
-  private CompletableFuture<KafkaProducer<GenericRecord, GenericRecord>> kafkaProducer;
+  private CompletableFuture<CompletableKafkaProducer<GenericRecord, GenericRecord>> kafkaProducer;
 
   public KafkaCDCProducer(MappingService mappingService, SchemaProvider schemaProvider) {
     this.mappingService = mappingService;
@@ -53,7 +52,7 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
 
   @Override
   public CompletableFuture<Void> init(Map<String, Object> options) {
-    kafkaProducer = CompletableFuture.supplyAsync(() -> new KafkaProducer<>(options));
+    kafkaProducer = CompletableFuture.supplyAsync(() -> new CompletableKafkaProducer<>(options));
     return kafkaProducer.thenAccept(toVoid());
   }
 
@@ -81,10 +80,10 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
 
   @NotNull
   private CompletionStage<Void> handleRowMutationEvent(
-      RowMutationEvent mutationEvent, KafkaProducer<GenericRecord, GenericRecord> producer) {
+      RowMutationEvent mutationEvent,
+      CompletableKafkaProducer<GenericRecord, GenericRecord> producer) {
     ProducerRecord<GenericRecord, GenericRecord> producerRecord = toProducerRecord(mutationEvent);
-    return CompletablePromise.fromFuture(producer.send(producerRecord, new KafkaProducerCallback()))
-        .thenAccept(toVoid());
+    return producer.sendAsync(producerRecord).thenAccept(toVoid());
   }
 
   @NotNull
