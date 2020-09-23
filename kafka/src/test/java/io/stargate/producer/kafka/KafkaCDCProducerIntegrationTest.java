@@ -37,7 +37,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
-import java.util.concurrent.ExecutionException;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.cassandra.stargate.db.Cell;
@@ -78,8 +77,7 @@ class KafkaCDCProducerIntegrationTest {
   }
 
   @Test
-  public void shouldSendEventWithOnePartitionKeyAndOneValue()
-      throws ExecutionException, InterruptedException {
+  public void shouldSendEventWithOnePartitionKeyAndOneValue() throws Exception {
     // given
     String partitionKeyValue = "pk_value";
     String columnValue = "col_value";
@@ -95,11 +93,7 @@ class KafkaCDCProducerIntegrationTest {
     when(schemaProvider.getValueSchemaForTopic(TOPIC_NAME)).thenReturn(VALUE_SCHEMA);
 
     KafkaCDCProducer kafkaCDCProducer = new KafkaCDCProducer(mappingService, schemaProvider);
-    Map<String, Object> properties = new HashMap<>();
-    properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers());
-    properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, MockKafkaAvroSerializer.class);
-    properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, MockKafkaAvroSerializer.class);
-    properties.put("schema.registry.url", "mocked");
+    Map<String, Object> properties = createKafkaProducerSettings();
     kafkaCDCProducer.init(properties).get();
 
     // when
@@ -114,6 +108,17 @@ class KafkaCDCProducerIntegrationTest {
     expectedValue.put(COLUMN_NAME, columnValue);
 
     validateThatWasSendToKafka(expectedKey, expectedValue);
+    kafkaCDCProducer.close();
+  }
+
+  @NotNull
+  private Map<String, Object> createKafkaProducerSettings() {
+    Map<String, Object> properties = new HashMap<>();
+    properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers());
+    properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, MockKafkaAvroSerializer.class);
+    properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, MockKafkaAvroSerializer.class);
+    properties.put("schema.registry.url", "mocked");
+    return properties;
   }
 
   @SuppressWarnings("UnstableApiUsage")
