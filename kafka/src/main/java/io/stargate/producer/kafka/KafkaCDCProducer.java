@@ -97,10 +97,7 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
 
   @SuppressWarnings("UnstableApiUsage")
   private GenericRecord constructGenericRecord(
-      String topicName,
-      List<ColumnMetadata> columnsMetadata,
-      List<? extends CellValue> cellValues,
-      Schema schema) {
+      List<ColumnMetadata> columnsMetadata, List<? extends CellValue> cellValues, Schema schema) {
 
     GenericRecord value = new GenericData.Record(schema);
     List<ColumnMetadataWithCellValue> columns =
@@ -115,7 +112,6 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
   @NotNull
   private GenericRecord constructValue(RowMutationEvent mutationEvent, String topicName) {
     return constructGenericRecord(
-        topicName,
         mutationEvent.getTable().getColumns(),
         mutationEvent.getCells(),
         schemaProvider.getValueSchemaForTopic(topicName));
@@ -124,7 +120,6 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
   @NotNull
   private GenericRecord constructKey(RowMutationEvent mutationEvent, String topicName) {
     return constructGenericRecord(
-        topicName,
         mutationEvent.getTable().getPartitionKeys(),
         mutationEvent.getPartitionKeys(),
         schemaProvider.getKeySchemaForTopic(topicName));
