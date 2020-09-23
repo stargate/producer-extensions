@@ -19,9 +19,11 @@ import static io.stargate.producer.kafka.schema.Schemas.COLUMN_NAME;
 import static io.stargate.producer.kafka.schema.Schemas.KEY_SCHEMA;
 import static io.stargate.producer.kafka.schema.Schemas.PARTITION_KEY_NAME;
 import static io.stargate.producer.kafka.schema.Schemas.VALUE_SCHEMA;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.google.common.collect.Streams;
 import io.stargate.producer.kafka.mapping.MappingService;
 import io.stargate.producer.kafka.schema.MockKafkaAvroSerializer;
 import io.stargate.producer.kafka.schema.MockKeyKafkaAvroDeserializer;
@@ -29,7 +31,6 @@ import io.stargate.producer.kafka.schema.MockValueKafkaAvroDeserializer;
 import io.stargate.producer.kafka.schema.SchemaProvider;
 import java.nio.ByteBuffer;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -48,7 +49,6 @@ import org.apache.cassandra.stargate.schema.ColumnMetadata;
 import org.apache.cassandra.stargate.schema.TableMetadata;
 import org.apache.commons.codec.Charsets;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -70,8 +70,7 @@ class KafkaCDCProducerIntegrationTest {
   @BeforeAll
   public static void setup() {
     Network network = Network.newNetwork();
-    kafkaContainer = new KafkaContainer().withNetwork(network);
-    // .withExposedPorts(KAFKA_PORT);
+    kafkaContainer = new KafkaContainer().withNetwork(network).withExposedPorts(KAFKA_PORT);
     kafkaContainer.start();
   }
 
@@ -119,6 +118,7 @@ class KafkaCDCProducerIntegrationTest {
     validateThatWasSendToKafka(expectedKey, expectedValue);
   }
 
+  @SuppressWarnings("UnstableApiUsage")
   private void validateThatWasSendToKafka(GenericRecord expectedKey, GenericRecord expectedValue) {
     Properties props = new Properties();
     props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers());
@@ -126,19 +126,23 @@ class KafkaCDCProducerIntegrationTest {
     props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, MockValueKafkaAvroDeserializer.class);
     props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true");
     props.put(ConsumerConfig.GROUP_ID_CONFIG, UUID.randomUUID().toString());
+    props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
     props.put("schema.registry.url", "mocked");
 
-    // todo add validation
     KafkaConsumer<GenericRecord, GenericRecord> consumer = new KafkaConsumer<>(props);
-    consumer.subscribe(Arrays.asList(TOPIC_NAME));
-    while (true) {
-      ConsumerRecords<GenericRecord, GenericRecord> recs = consumer.poll(Duration.ofMillis(100));
-      for (ConsumerRecord<GenericRecord, GenericRecord> rec : recs) {
-        System.out.printf(
-            "{AvroUtilsConsumerUser}: Received [key= %s, value= %s]\n", rec.key(), rec.value());
-        return;
-      }
-    }
+    consumer.subscribe(Collections.singletonList(TOPIC_NAME));
+
+    await()
+        .atMost(Duration.ofSeconds(5))
+        .until(
+            () -> {
+              ConsumerRecords<GenericRecord, GenericRecord> records =
+                  consumer.poll(Duration.ofMillis(100));
+              System.out.println("----> " + records.count());
+              return Streams.stream(records)
+                  .anyMatch(r -> r.key().equals(expectedKey) && r.value().equals(expectedValue));
+            });
+    consumer.close();
   }
 
   @NotNull

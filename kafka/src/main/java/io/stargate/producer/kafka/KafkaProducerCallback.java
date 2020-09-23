@@ -28,6 +28,5 @@ public class KafkaProducerCallback implements Callback {
     if (e != null) {
       LOG.error("Problem when sending the: " + recordMetadata, e);
     }
-    LOG.info("Successfully send: {}", recordMetadata);
   }
 }
