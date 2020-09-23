@@ -61,8 +61,6 @@ import org.testcontainers.containers.Network;
 
 class KafkaCDCProducerIntegrationTest {
 
-  private static final int KAFKA_PORT = 9093;
-
   private static KafkaContainer kafkaContainer;
 
   private static final String TOPIC_NAME = "topic_1";
@@ -70,7 +68,7 @@ class KafkaCDCProducerIntegrationTest {
   @BeforeAll
   public static void setup() {
     Network network = Network.newNetwork();
-    kafkaContainer = new KafkaContainer().withNetwork(network).withExposedPorts(KAFKA_PORT);
+    kafkaContainer = new KafkaContainer().withNetwork(network);
     kafkaContainer.start();
   }
 
@@ -138,7 +136,6 @@ class KafkaCDCProducerIntegrationTest {
             () -> {
               ConsumerRecords<GenericRecord, GenericRecord> records =
                   consumer.poll(Duration.ofMillis(100));
-              System.out.println("----> " + records.count());
               return Streams.stream(records)
                   .anyMatch(r -> r.key().equals(expectedKey) && r.value().equals(expectedValue));
             });
