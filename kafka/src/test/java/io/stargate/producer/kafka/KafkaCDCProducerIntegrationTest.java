@@ -95,8 +95,6 @@ class KafkaCDCProducerIntegrationTest {
     MappingService mappingService = mock(MappingService.class);
     SchemaProvider schemaProvider = mock(SchemaProvider.class);
     TableMetadata tableMetadata = mock(TableMetadata.class);
-    when(tableMetadata.getPartitionKeys()).thenReturn(stringPartitionKey(PARTITION_KEY_NAME));
-    when(tableMetadata.getColumns()).thenReturn(column(COLUMN_NAME));
 
     when(mappingService.getTopicNameFromTableMetadata(tableMetadata)).thenReturn(TOPIC_NAME);
 
@@ -109,7 +107,13 @@ class KafkaCDCProducerIntegrationTest {
 
     // when
     kafkaCDCProducer
-        .send(createRowMutationEvent(partitionKeyValue, tableMetadata, columnValue))
+        .send(
+            createRowMutationEvent(
+                partitionKeyValue,
+                tableMetadata,
+                columnValue,
+                stringPartitionKey(PARTITION_KEY_NAME),
+                column(COLUMN_NAME)))
         .get();
 
     // then
@@ -121,7 +125,7 @@ class KafkaCDCProducerIntegrationTest {
     try {
       validateThatWasSendToKafka(expectedKey, expectedValue);
     } finally {
-      kafkaCDCProducer.close();
+      kafkaCDCProducer.close().get();
     }
   }
 
@@ -133,8 +137,6 @@ class KafkaCDCProducerIntegrationTest {
     MappingService mappingService = mock(MappingService.class);
     SchemaProvider schemaProvider = mock(SchemaProvider.class);
     TableMetadata tableMetadata = mock(TableMetadata.class);
-    when(tableMetadata.getPartitionKeys()).thenReturn(stringPartitionKey(PARTITION_KEY_NAME));
-    when(tableMetadata.getColumns()).thenReturn(column(COLUMN_NAME));
 
     when(mappingService.getTopicNameFromTableMetadata(tableMetadata)).thenReturn(TOPIC_NAME);
 
@@ -152,7 +154,13 @@ class KafkaCDCProducerIntegrationTest {
       assertThatCode(
               () -> {
                 kafkaCDCProducer
-                    .send(createRowMutationEvent(partitionKeyValue, tableMetadata, columnValue))
+                    .send(
+                        createRowMutationEvent(
+                            partitionKeyValue,
+                            tableMetadata,
+                            columnValue,
+                            stringPartitionKey(PARTITION_KEY_NAME),
+                            column(COLUMN_NAME)))
                     .get();
               })
           .hasRootCauseInstanceOf(TimeoutException.class)
@@ -160,6 +168,7 @@ class KafkaCDCProducerIntegrationTest {
     } finally {
       // resume connections
       kafkaProxy.setConnectionCut(false);
+      kafkaCDCProducer.close().get();
     }
   }
 
@@ -211,7 +220,11 @@ class KafkaCDCProducerIntegrationTest {
 
   @NotNull
   private RowMutationEvent createRowMutationEvent(
-      String partitionKeyValue, TableMetadata tableMetadata, String value) {
+      String partitionKeyValue,
+      TableMetadata tableMetadata,
+      String value,
+      ColumnMetadata partitionKeyMetadata,
+      ColumnMetadata columnMetadata) {
     return new RowMutationEvent() {
       @Override
       public TableMetadata getTable() {
@@ -225,7 +238,7 @@ class KafkaCDCProducerIntegrationTest {
 
       @Override
       public List<CellValue> getPartitionKeys() {
-        return Collections.singletonList(cellValue(partitionKeyValue));
+        return Collections.singletonList(cellValue(partitionKeyValue, partitionKeyMetadata));
       }
 
       @Override
@@ -249,7 +262,7 @@ class KafkaCDCProducerIntegrationTest {
 
               @Override
               public ColumnMetadata getColumn() {
-                return null;
+                return columnMetadata;
               }
 
               @Override
@@ -267,7 +280,7 @@ class KafkaCDCProducerIntegrationTest {
   }
 
   @NotNull
-  private CellValue cellValue(String partitionKeyValue) {
+  private CellValue cellValue(String partitionKeyValue, ColumnMetadata columnMetadata) {
     return new CellValue() {
       @Override
       public ByteBuffer getValue() {
@@ -278,47 +291,51 @@ class KafkaCDCProducerIntegrationTest {
       public Object getValueObject() {
         return partitionKeyValue;
       }
+
+      @Override
+      public ColumnMetadata getColumn() {
+        return columnMetadata;
+      }
     };
   }
 
   @NotNull
-  private List<ColumnMetadata> stringPartitionKey(String partitionKeyName) {
-    return Collections.singletonList(
-        new ColumnMetadata() {
-          @Override
-          public Kind getKind() {
-            return Kind.PARTITION_KEY;
-          }
+  private ColumnMetadata stringPartitionKey(String partitionKeyName) {
 
-          @Override
-          public String getName() {
-            return partitionKeyName;
-          }
+    return new ColumnMetadata() {
+      @Override
+      public Kind getKind() {
+        return Kind.PARTITION_KEY;
+      }
 
-          @Override
-          public CQLType getType() {
-            return Native.TEXT;
-          }
-        });
+      @Override
+      public String getName() {
+        return partitionKeyName;
+      }
+
+      @Override
+      public CQLType getType() {
+        return Native.TEXT;
+      }
+    };
   }
 
-  private List<ColumnMetadata> column(String columnName) {
-    return Collections.singletonList(
-        new ColumnMetadata() {
-          @Override
-          public Kind getKind() {
-            return Kind.REGULAR;
-          }
+  private ColumnMetadata column(String columnName) {
+    return new ColumnMetadata() {
+      @Override
+      public Kind getKind() {
+        return Kind.REGULAR;
+      }
 
-          @Override
-          public String getName() {
-            return columnName;
-          }
+      @Override
+      public String getName() {
+        return columnName;
+      }
 
-          @Override
-          public CQLType getType() {
-            return Native.TEXT;
-          }
-        });
+      @Override
+      public CQLType getType() {
+        return Native.TEXT;
+      }
+    };
   }
 }

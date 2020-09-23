@@ -15,7 +15,6 @@
  */
 package io.stargate.producer.kafka;
 
-import com.google.common.collect.Streams;
 import io.stargate.db.cdc.SchemaAwareCDCProducer;
 import io.stargate.producer.kafka.mapping.MappingService;
 import io.stargate.producer.kafka.producer.CompletableKafkaProducer;
@@ -25,14 +24,12 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.cassandra.stargate.db.CellValue;
 import org.apache.cassandra.stargate.db.MutationEvent;
 import org.apache.cassandra.stargate.db.RowMutationEvent;
-import org.apache.cassandra.stargate.schema.ColumnMetadata;
 import org.apache.cassandra.stargate.schema.TableMetadata;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.jetbrains.annotations.NotNull;
@@ -104,57 +101,35 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
     return new ProducerRecord<>(topicName, key, value);
   }
 
-  @SuppressWarnings("UnstableApiUsage")
   private GenericRecord constructGenericRecord(
-      List<ColumnMetadata> columnsMetadata, List<? extends CellValue> cellValues, Schema schema) {
+      List<? extends CellValue> cellValues, Schema schema) {
 
     GenericRecord value = new GenericData.Record(schema);
-    List<ColumnMetadataWithCellValue> columns =
-        Streams.zip(columnsMetadata.stream(), cellValues.stream(), ColumnMetadataWithCellValue::new)
-            .collect(Collectors.toList());
-    for (ColumnMetadataWithCellValue column : columns) {
-      value.put(column.columnMetadata.getName(), column.cellValue.getValueObject());
-    }
+    cellValues.forEach(
+        cellValue -> {
+          value.put(cellValue.getColumn().getName(), cellValue.getValueObject());
+        });
     return value;
   }
 
   @NotNull
   private GenericRecord constructValue(RowMutationEvent mutationEvent, String topicName) {
     return constructGenericRecord(
-        mutationEvent.getTable().getColumns(),
-        mutationEvent.getCells(),
-        schemaProvider.getValueSchemaForTopic(topicName));
+        mutationEvent.getCells(), schemaProvider.getValueSchemaForTopic(topicName));
   }
 
   @NotNull
   private GenericRecord constructKey(RowMutationEvent mutationEvent, String topicName) {
     return constructGenericRecord(
-        mutationEvent.getTable().getPartitionKeys(),
-        mutationEvent.getPartitionKeys(),
-        schemaProvider.getKeySchemaForTopic(topicName));
+        mutationEvent.getPartitionKeys(), schemaProvider.getKeySchemaForTopic(topicName));
   }
 
   @Override
-  public void close() throws Exception {
-    kafkaProducer
-        .thenAccept(
-            producer -> {
-              producer.flush();
-              producer.close();
-            })
-        .get();
-  }
-
-  private static class ColumnMetadataWithCellValue {
-
-    private final ColumnMetadata columnMetadata;
-
-    private final CellValue cellValue;
-
-    public ColumnMetadataWithCellValue(ColumnMetadata columnMetadata, CellValue cellValue) {
-
-      this.columnMetadata = columnMetadata;
-      this.cellValue = cellValue;
-    }
+  public CompletableFuture<Void> close() {
+    return kafkaProducer.thenAccept(
+        producer -> {
+          producer.flush();
+          producer.close();
+        });
   }
 }
