@@ -17,12 +17,13 @@ package io.stargate.producer.kafka;
 
 import com.google.common.collect.Streams;
 import io.stargate.db.cdc.SchemaAwareCDCProducer;
+import io.stargate.producer.kafka.converters.future.CompletablePromise;
 import io.stargate.producer.kafka.mapping.MappingService;
 import io.stargate.producer.kafka.schema.SchemaProvider;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.avro.Schema;
@@ -35,7 +36,6 @@ import org.apache.cassandra.stargate.schema.ColumnMetadata;
 import org.apache.cassandra.stargate.schema.TableMetadata;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.clients.producer.RecordMetadata;
 import org.jetbrains.annotations.NotNull;
 
 public class KafkaCDCProducer extends SchemaAwareCDCProducer {
@@ -57,7 +57,7 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
     return kafkaProducer.thenAccept(toVoid());
   }
 
-  private Consumer<KafkaProducer<GenericRecord, GenericRecord>> toVoid() {
+  private Consumer<Object> toVoid() {
     return (producer) -> {};
   }
 
@@ -69,21 +69,31 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
 
   @Override
   protected CompletableFuture<Void> send(MutationEvent mutationEvent) {
-    return kafkaProducer.thenAccept(
+    return kafkaProducer.thenCompose(
         producer -> {
           if (mutationEvent instanceof RowMutationEvent) {
-            ProducerRecord<GenericRecord, GenericRecord> producerRecord =
-                toProducerRecord((RowMutationEvent) mutationEvent);
-            try {
-              // todo to CompletableFuture and flatten
-              RecordMetadata recordMetadata =
-                  producer.send(producerRecord, new KafkaProducerCallback()).get();
-              System.out.println(recordMetadata);
-            } catch (InterruptedException | ExecutionException e) {
-              e.printStackTrace();
-            }
+            return handleRowMutationEvent((RowMutationEvent) mutationEvent, producer);
+          } else {
+            return handleNotSupportedEventType(mutationEvent);
           }
         });
+  }
+
+  @NotNull
+  private CompletionStage<Void> handleRowMutationEvent(
+      RowMutationEvent mutationEvent, KafkaProducer<GenericRecord, GenericRecord> producer) {
+    ProducerRecord<GenericRecord, GenericRecord> producerRecord = toProducerRecord(mutationEvent);
+    return CompletablePromise.fromFuture(producer.send(producerRecord, new KafkaProducerCallback()))
+        .thenAccept(toVoid());
+  }
+
+  @NotNull
+  private CompletionStage<Void> handleNotSupportedEventType(MutationEvent mutationEvent) {
+    CompletableFuture<Void> result = new CompletableFuture<>();
+    result.completeExceptionally(
+        new UnsupportedOperationException(
+            "The MutationEvent of type: " + mutationEvent.getClass() + " is not supported."));
+    return result;
   }
 
   private ProducerRecord<GenericRecord, GenericRecord> toProducerRecord(
