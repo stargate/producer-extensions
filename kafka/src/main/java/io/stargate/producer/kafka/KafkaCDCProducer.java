@@ -131,11 +131,13 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
 
   @Override
   public void close() throws Exception {
-    kafkaProducer.thenAccept(
-        producer -> {
-          producer.flush();
-          producer.close();
-        });
+    kafkaProducer
+        .thenAccept(
+            producer -> {
+              producer.flush();
+              producer.close();
+            })
+        .get();
   }
 
   private static class ColumnMetadataWithCellValue {
