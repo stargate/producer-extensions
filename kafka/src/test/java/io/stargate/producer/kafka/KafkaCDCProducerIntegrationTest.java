@@ -15,12 +15,17 @@
  */
 package io.stargate.producer.kafka;
 
+import static io.stargate.producer.kafka.schema.Schemas.COLUMN_NAME;
+import static io.stargate.producer.kafka.schema.Schemas.KEY_SCHEMA;
+import static io.stargate.producer.kafka.schema.Schemas.PARTITION_KEY_NAME;
+import static io.stargate.producer.kafka.schema.Schemas.VALUE_SCHEMA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import io.confluent.kafka.serializers.KafkaAvroDeserializer;
-import io.confluent.kafka.serializers.KafkaAvroSerializer;
 import io.stargate.producer.kafka.mapping.MappingService;
+import io.stargate.producer.kafka.schema.MockKafkaAvroSerializer;
+import io.stargate.producer.kafka.schema.MockKeyKafkaAvroDeserializer;
+import io.stargate.producer.kafka.schema.MockValueKafkaAvroDeserializer;
 import io.stargate.producer.kafka.schema.SchemaProvider;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -31,8 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
-import org.apache.avro.Schema;
-import org.apache.avro.SchemaBuilder;
+import java.util.concurrent.ExecutionException;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.cassandra.stargate.db.Cell;
@@ -66,8 +70,8 @@ class KafkaCDCProducerIntegrationTest {
   @BeforeAll
   public static void setup() {
     Network network = Network.newNetwork();
-    //		.withExposedPorts(KAFKA_PORT)
     kafkaContainer = new KafkaContainer().withNetwork(network);
+    // .withExposedPorts(KAFKA_PORT);
     kafkaContainer.start();
   }
 
@@ -77,70 +81,69 @@ class KafkaCDCProducerIntegrationTest {
   }
 
   @Test
-  public void shouldSendEventWithOnePartitionKeyAndOneValue() {
+  public void shouldSendEventWithOnePartitionKeyAndOneValue()
+      throws ExecutionException, InterruptedException {
     // given
-    String partitionKeyName = "pk_1";
     String partitionKeyValue = "pk_value";
-    String columnName = "col_1";
     String columnValue = "col_value";
     MappingService mappingService = mock(MappingService.class);
     SchemaProvider schemaProvider = mock(SchemaProvider.class);
     TableMetadata tableMetadata = mock(TableMetadata.class);
-    when(tableMetadata.getPartitionKeys()).thenReturn(stringPartitionKey(partitionKeyName));
-    when(mappingService.getPartitionKeyName(tableMetadata)).thenReturn(TOPIC_NAME);
-    when(mappingService.getPartitionKeyName(tableMetadata)).thenReturn(partitionKeyName);
+    when(tableMetadata.getPartitionKeys()).thenReturn(stringPartitionKey(PARTITION_KEY_NAME));
+    when(tableMetadata.getColumns()).thenReturn(column(COLUMN_NAME));
 
-    Schema keySchema =
-        SchemaBuilder.record("key").fields().requiredString(partitionKeyName).endRecord();
+    when(mappingService.getTopicNameFromTableMetadata(tableMetadata)).thenReturn(TOPIC_NAME);
 
-    Schema valueSchema =
-        SchemaBuilder.record("value").fields().requiredString(columnName).endRecord();
-
-    // todo verify value
-    when(schemaProvider.getKeySchemaForTableMetadata(TOPIC_NAME)).thenReturn(keySchema);
-    when(schemaProvider.getValueSchemaForTableMetadata(TOPIC_NAME)).thenReturn(valueSchema);
+    when(schemaProvider.getKeySchemaForTopic(TOPIC_NAME)).thenReturn(KEY_SCHEMA);
+    when(schemaProvider.getValueSchemaForTopic(TOPIC_NAME)).thenReturn(VALUE_SCHEMA);
 
     KafkaCDCProducer kafkaCDCProducer = new KafkaCDCProducer(mappingService, schemaProvider);
     Map<String, Object> properties = new HashMap<>();
     properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers());
-    properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, KafkaAvroSerializer.class);
-    properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, KafkaAvroSerializer.class);
-    kafkaCDCProducer.init(properties);
+    properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, MockKafkaAvroSerializer.class);
+    properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, MockKafkaAvroSerializer.class);
+    properties.put("schema.registry.url", "mocked");
+    kafkaCDCProducer.init(properties).get();
 
     // when
-    kafkaCDCProducer.send(createRowMutationEvent(partitionKeyValue, tableMetadata));
+    kafkaCDCProducer
+        .send(createRowMutationEvent(partitionKeyValue, tableMetadata, columnValue))
+        .get();
 
     // then
-    GenericRecord expectedKey = new GenericData.Record(keySchema);
-    expectedKey.put(partitionKeyName, partitionKeyValue);
-    GenericRecord expectedValue = new GenericData.Record(valueSchema);
-    expectedValue.put(columnName, columnValue);
+    GenericRecord expectedKey = new GenericData.Record(KEY_SCHEMA);
+    expectedKey.put(PARTITION_KEY_NAME, partitionKeyValue);
+    GenericRecord expectedValue = new GenericData.Record(VALUE_SCHEMA);
+    expectedValue.put(COLUMN_NAME, columnValue);
+
     validateThatWasSendToKafka(expectedKey, expectedValue);
   }
 
   private void validateThatWasSendToKafka(GenericRecord expectedKey, GenericRecord expectedValue) {
     Properties props = new Properties();
     props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers());
-    props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, KafkaAvroDeserializer.class);
-    props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, KafkaAvroDeserializer.class);
+    props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, MockKeyKafkaAvroDeserializer.class);
+    props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, MockValueKafkaAvroDeserializer.class);
     props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true");
     props.put(ConsumerConfig.GROUP_ID_CONFIG, UUID.randomUUID().toString());
+    props.put("schema.registry.url", "mocked");
 
     // todo add validation
     KafkaConsumer<GenericRecord, GenericRecord> consumer = new KafkaConsumer<>(props);
     consumer.subscribe(Arrays.asList(TOPIC_NAME));
     while (true) {
-      ConsumerRecords<GenericRecord, GenericRecord> recs = consumer.poll(Duration.ofSeconds(10));
+      ConsumerRecords<GenericRecord, GenericRecord> recs = consumer.poll(Duration.ofMillis(100));
       for (ConsumerRecord<GenericRecord, GenericRecord> rec : recs) {
         System.out.printf(
-            "{AvroUtilsConsumerUser}: Recieved [key= %s, value= %s]\n", rec.key(), rec.value());
+            "{AvroUtilsConsumerUser}: Received [key= %s, value= %s]\n", rec.key(), rec.value());
+        return;
       }
     }
   }
 
   @NotNull
   private RowMutationEvent createRowMutationEvent(
-      String partitionKeyValue, TableMetadata tableMetadata) {
+      String partitionKeyValue, TableMetadata tableMetadata, String value) {
     return new RowMutationEvent() {
       @Override
       public TableMetadata getTable() {
@@ -164,7 +167,33 @@ class KafkaCDCProducerIntegrationTest {
 
       @Override
       public List<Cell> getCells() {
-        return null;
+        return Collections.singletonList(
+            new Cell() {
+              @Override
+              public int getTTL() {
+                return 0;
+              }
+
+              @Override
+              public boolean isNull() {
+                return false;
+              }
+
+              @Override
+              public ColumnMetadata getColumn() {
+                return null;
+              }
+
+              @Override
+              public ByteBuffer getValue() {
+                return ByteBuffer.wrap(value.getBytes(Charsets.UTF_8));
+              }
+
+              @Override
+              public Object getValueObject() {
+                return value;
+              }
+            });
       }
     };
   }
@@ -179,7 +208,7 @@ class KafkaCDCProducerIntegrationTest {
 
       @Override
       public Object getValueObject() {
-        return null;
+        return partitionKeyValue;
       }
     };
   }
@@ -196,6 +225,26 @@ class KafkaCDCProducerIntegrationTest {
           @Override
           public String getName() {
             return partitionKeyName;
+          }
+
+          @Override
+          public CQLType getType() {
+            return Native.TEXT;
+          }
+        });
+  }
+
+  private List<ColumnMetadata> column(String columnName) {
+    return Collections.singletonList(
+        new ColumnMetadata() {
+          @Override
+          public Kind getKind() {
+            return Kind.REGULAR;
+          }
+
+          @Override
+          public String getName() {
+            return columnName;
           }
 
           @Override

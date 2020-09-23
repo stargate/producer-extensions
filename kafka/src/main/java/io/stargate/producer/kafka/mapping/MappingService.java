@@ -19,8 +19,5 @@ import org.apache.cassandra.stargate.schema.TableMetadata;
 
 public interface MappingService {
   /** returns the topic name for TableMetadata (keyspace.tableName) */
-  String topicNameFromTableMetadata(TableMetadata tableMetadata);
-
-  /** return field name from table that should be used as the partition key */
-  String getPartitionKeyName(TableMetadata table);
+  String getTopicNameFromTableMetadata(TableMetadata tableMetadata);
 }

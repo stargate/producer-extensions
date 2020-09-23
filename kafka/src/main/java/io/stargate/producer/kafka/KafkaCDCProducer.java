@@ -22,6 +22,7 @@ import io.stargate.producer.kafka.schema.SchemaProvider;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.avro.Schema;
@@ -34,6 +35,7 @@ import org.apache.cassandra.stargate.schema.ColumnMetadata;
 import org.apache.cassandra.stargate.schema.TableMetadata;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.jetbrains.annotations.NotNull;
 
 public class KafkaCDCProducer extends SchemaAwareCDCProducer {
@@ -71,20 +73,40 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
           if (mutationEvent instanceof RowMutationEvent) {
             ProducerRecord<GenericRecord, GenericRecord> producerRecord =
                 toProducerRecord((RowMutationEvent) mutationEvent);
-            producer.send(producerRecord, new KafkaProducerCallback());
+            try {
+              // todo to CompletableFuture and flatten
+              RecordMetadata recordMetadata =
+                  producer.send(producerRecord, new KafkaProducerCallback()).get();
+              System.out.println(recordMetadata);
+            } catch (InterruptedException | ExecutionException e) {
+              e.printStackTrace();
+            }
           }
         });
   }
 
   private ProducerRecord<GenericRecord, GenericRecord> toProducerRecord(
       RowMutationEvent mutationEvent) {
-    String topicName = mappingService.topicNameFromTableMetadata(mutationEvent.getTable());
+    String topicName = mappingService.getTopicNameFromTableMetadata(mutationEvent.getTable());
 
     GenericRecord key = constructKey(mutationEvent, topicName);
-
-    // todo construct value
-    GenericRecord value = null;
+    GenericRecord value = constructValue(mutationEvent, topicName);
     return new ProducerRecord<>(topicName, key, value);
+  }
+
+  private GenericRecord constructValue(RowMutationEvent mutationEvent, String topicName) {
+    Schema valueSchema = schemaProvider.getValueSchemaForTopic(topicName);
+    GenericRecord value = new GenericData.Record(valueSchema);
+    List<ColumnMetadataWithCellValue> columns =
+        Streams.zip(
+                mutationEvent.getTable().getColumns().stream(),
+                mutationEvent.getCells().stream(),
+                ColumnMetadataWithCellValue::new)
+            .collect(Collectors.toList());
+    for (ColumnMetadataWithCellValue column : columns) {
+      value.put(column.columnMetadata.getName(), column.cellValue.getValueObject());
+    }
+    return value;
   }
 
   @NotNull
@@ -98,11 +120,11 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
                 ColumnMetadataWithCellValue::new)
             .collect(Collectors.toList());
 
-    Schema keySchema = schemaProvider.getKeySchemaForTableMetadata(topicName);
+    Schema keySchema = schemaProvider.getKeySchemaForTopic(topicName);
     GenericRecord key = new GenericData.Record(keySchema);
 
     for (ColumnMetadataWithCellValue pk : partitionKeys) {
-      key.put(pk.columnMetadata.getName(), pk.cellValue.getValue());
+      key.put(pk.columnMetadata.getName(), pk.cellValue.getValueObject());
     }
     return key;
   }

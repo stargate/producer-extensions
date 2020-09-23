@@ -20,8 +20,8 @@ import org.apache.avro.Schema;
 public interface SchemaProvider {
 
   /** Returns the avro partition key schema for kafka topic name */
-  Schema getKeySchemaForTableMetadata(String topicName);
+  Schema getKeySchemaForTopic(String topicName);
 
   /** Returns the avro value schema for kafka topic name */
-  Schema getValueSchemaForTableMetadata(String topicName);
+  Schema getValueSchemaForTopic(String topicName);
 }
