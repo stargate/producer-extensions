@@ -63,6 +63,7 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
 
   @Override
   protected CompletableFuture<Void> createTableSchemaAsync(TableMetadata tableMetadata) {
+    // todo
     return CompletableFuture.completedFuture(null);
   }
 
@@ -94,14 +95,16 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
     return new ProducerRecord<>(topicName, key, value);
   }
 
-  private GenericRecord constructValue(RowMutationEvent mutationEvent, String topicName) {
-    Schema valueSchema = schemaProvider.getValueSchemaForTopic(topicName);
-    GenericRecord value = new GenericData.Record(valueSchema);
+  @SuppressWarnings("UnstableApiUsage")
+  private GenericRecord constructGenericRecord(
+      String topicName,
+      List<ColumnMetadata> columnsMetadata,
+      List<? extends CellValue> cellValues,
+      Schema schema) {
+
+    GenericRecord value = new GenericData.Record(schema);
     List<ColumnMetadataWithCellValue> columns =
-        Streams.zip(
-                mutationEvent.getTable().getColumns().stream(),
-                mutationEvent.getCells().stream(),
-                ColumnMetadataWithCellValue::new)
+        Streams.zip(columnsMetadata.stream(), cellValues.stream(), ColumnMetadataWithCellValue::new)
             .collect(Collectors.toList());
     for (ColumnMetadataWithCellValue column : columns) {
       value.put(column.columnMetadata.getName(), column.cellValue.getValueObject());
@@ -110,23 +113,21 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
   }
 
   @NotNull
-  @SuppressWarnings("UnstableApiUsage")
+  private GenericRecord constructValue(RowMutationEvent mutationEvent, String topicName) {
+    return constructGenericRecord(
+        topicName,
+        mutationEvent.getTable().getColumns(),
+        mutationEvent.getCells(),
+        schemaProvider.getValueSchemaForTopic(topicName));
+  }
+
+  @NotNull
   private GenericRecord constructKey(RowMutationEvent mutationEvent, String topicName) {
-
-    List<ColumnMetadataWithCellValue> partitionKeys =
-        Streams.zip(
-                mutationEvent.getTable().getPartitionKeys().stream(),
-                mutationEvent.getPartitionKeys().stream(),
-                ColumnMetadataWithCellValue::new)
-            .collect(Collectors.toList());
-
-    Schema keySchema = schemaProvider.getKeySchemaForTopic(topicName);
-    GenericRecord key = new GenericData.Record(keySchema);
-
-    for (ColumnMetadataWithCellValue pk : partitionKeys) {
-      key.put(pk.columnMetadata.getName(), pk.cellValue.getValueObject());
-    }
-    return key;
+    return constructGenericRecord(
+        topicName,
+        mutationEvent.getTable().getPartitionKeys(),
+        mutationEvent.getPartitionKeys(),
+        schemaProvider.getKeySchemaForTopic(topicName));
   }
 
   @Override
