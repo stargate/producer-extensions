@@ -194,19 +194,19 @@
       <organization>Stargate</organization>
     </developer>
   </developers>
-	<repositories>
-		<repository>
-			<id>Confluent</id>
-			<name>Confluent</name>
-			<url>http://packages.confluent.io/maven/</url>
-			<releases>
-				<enabled>true</enabled>
-			</releases>
-			<snapshots>
-				<enabled>false</enabled>
-			</snapshots>
-		</repository>
-	</repositories>
+  <repositories>
+    <repository>
+      <id>Confluent</id>
+      <name>Confluent</name>
+      <url>http://packages.confluent.io/maven/</url>
+      <releases>
+        <enabled>true</enabled>
+      </releases>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+    </repository>
+  </repositories>
   <distributionManagement>
     <repository>
       <id>ossrh</id>
