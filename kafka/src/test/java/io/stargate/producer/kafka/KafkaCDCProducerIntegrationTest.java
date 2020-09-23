@@ -19,6 +19,7 @@ import static io.stargate.producer.kafka.schema.Schemas.COLUMN_NAME;
 import static io.stargate.producer.kafka.schema.Schemas.KEY_SCHEMA;
 import static io.stargate.producer.kafka.schema.Schemas.PARTITION_KEY_NAME;
 import static io.stargate.producer.kafka.schema.Schemas.VALUE_SCHEMA;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -51,16 +52,22 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.errors.TimeoutException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.Network;
+import org.testcontainers.containers.ToxiproxyContainer;
+import org.testcontainers.containers.ToxiproxyContainer.ContainerProxy;
 
 class KafkaCDCProducerIntegrationTest {
 
+  private static int PORT = 9093;
   private static KafkaContainer kafkaContainer;
+  private static ToxiproxyContainer toxiproxyContainer;
+  private static ContainerProxy kafkaProxy;
 
   private static final String TOPIC_NAME = "topic_1";
 
@@ -68,12 +75,16 @@ class KafkaCDCProducerIntegrationTest {
   public static void setup() {
     Network network = Network.newNetwork();
     kafkaContainer = new KafkaContainer().withNetwork(network);
+    toxiproxyContainer = new ToxiproxyContainer().withNetwork(network);
+    toxiproxyContainer.start();
+    kafkaProxy = toxiproxyContainer.getProxy(kafkaContainer, PORT);
     kafkaContainer.start();
   }
 
   @AfterAll
   public static void cleanup() {
     kafkaContainer.stop();
+    toxiproxyContainer.stop();
   }
 
   @Test
@@ -114,12 +125,55 @@ class KafkaCDCProducerIntegrationTest {
     }
   }
 
+  @Test
+  public void shouldPropagateErrorWhenKafkaConnectionWasClosed() throws Exception {
+    // given
+    String partitionKeyValue = "pk_value";
+    String columnValue = "col_value";
+    MappingService mappingService = mock(MappingService.class);
+    SchemaProvider schemaProvider = mock(SchemaProvider.class);
+    TableMetadata tableMetadata = mock(TableMetadata.class);
+    when(tableMetadata.getPartitionKeys()).thenReturn(stringPartitionKey(PARTITION_KEY_NAME));
+    when(tableMetadata.getColumns()).thenReturn(column(COLUMN_NAME));
+
+    when(mappingService.getTopicNameFromTableMetadata(tableMetadata)).thenReturn(TOPIC_NAME);
+
+    when(schemaProvider.getKeySchemaForTopic(TOPIC_NAME)).thenReturn(KEY_SCHEMA);
+    when(schemaProvider.getValueSchemaForTopic(TOPIC_NAME)).thenReturn(VALUE_SCHEMA);
+
+    KafkaCDCProducer kafkaCDCProducer = new KafkaCDCProducer(mappingService, schemaProvider);
+    Map<String, Object> properties = createKafkaProducerSettings();
+    kafkaCDCProducer.init(properties).get();
+
+    // when
+    try {
+      // block connections to kafka
+      kafkaProxy.setConnectionCut(true);
+      assertThatCode(
+              () -> {
+                kafkaCDCProducer
+                    .send(createRowMutationEvent(partitionKeyValue, tableMetadata, columnValue))
+                    .get();
+              })
+          .hasRootCauseInstanceOf(TimeoutException.class)
+          .hasMessageContaining(String.format("Topic %s not present in metadata", TOPIC_NAME));
+    } finally {
+      // resume connections
+      kafkaProxy.setConnectionCut(false);
+    }
+  }
+
   @NotNull
   private Map<String, Object> createKafkaProducerSettings() {
     Map<String, Object> properties = new HashMap<>();
-    properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers());
+    properties.put(
+        ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
+        String.format("%s:%s", kafkaProxy.getContainerIpAddress(), kafkaProxy.getProxyPort()));
     properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, MockKafkaAvroSerializer.class);
     properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, MockKafkaAvroSerializer.class);
+    // lower the max.block to allow faster failure scenario testing
+    properties.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, "1000");
+
     properties.put("schema.registry.url", "mocked");
     return properties;
   }
@@ -127,7 +181,9 @@ class KafkaCDCProducerIntegrationTest {
   @SuppressWarnings("UnstableApiUsage")
   private void validateThatWasSendToKafka(GenericRecord expectedKey, GenericRecord expectedValue) {
     Properties props = new Properties();
-    props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers());
+    props.put(
+        ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
+        String.format("%s:%s", kafkaProxy.getContainerIpAddress(), kafkaProxy.getProxyPort()));
     props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, MockKeyKafkaAvroDeserializer.class);
     props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, MockValueKafkaAvroDeserializer.class);
     props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true");
