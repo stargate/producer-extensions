@@ -107,8 +107,11 @@ class KafkaCDCProducerIntegrationTest {
     GenericRecord expectedValue = new GenericData.Record(VALUE_SCHEMA);
     expectedValue.put(COLUMN_NAME, columnValue);
 
-    validateThatWasSendToKafka(expectedKey, expectedValue);
-    kafkaCDCProducer.close();
+    try {
+      validateThatWasSendToKafka(expectedKey, expectedValue);
+    } finally {
+      kafkaCDCProducer.close();
+    }
   }
 
   @NotNull
@@ -135,16 +138,19 @@ class KafkaCDCProducerIntegrationTest {
     KafkaConsumer<GenericRecord, GenericRecord> consumer = new KafkaConsumer<>(props);
     consumer.subscribe(Collections.singletonList(TOPIC_NAME));
 
-    await()
-        .atMost(Duration.ofSeconds(5))
-        .until(
-            () -> {
-              ConsumerRecords<GenericRecord, GenericRecord> records =
-                  consumer.poll(Duration.ofMillis(100));
-              return Streams.stream(records)
-                  .anyMatch(r -> r.key().equals(expectedKey) && r.value().equals(expectedValue));
-            });
-    consumer.close();
+    try {
+      await()
+          .atMost(Duration.ofSeconds(5))
+          .until(
+              () -> {
+                ConsumerRecords<GenericRecord, GenericRecord> records =
+                    consumer.poll(Duration.ofMillis(100));
+                return Streams.stream(records)
+                    .anyMatch(r -> r.key().equals(expectedKey) && r.value().equals(expectedValue));
+              });
+    } finally {
+      consumer.close();
+    }
   }
 
   @NotNull
