@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
-import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.cassandra.stargate.db.CellValue;
@@ -101,27 +100,30 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
     return new ProducerRecord<>(topicName, key, value);
   }
 
-  private GenericRecord constructGenericRecord(
-      List<? extends CellValue> cellValues, Schema schema) {
-
-    GenericRecord value = new GenericData.Record(schema);
+  private void fillGenericRecordWithData(
+      List<? extends CellValue> cellValues, GenericRecord genericRecord) {
     cellValues.forEach(
         cellValue -> {
-          value.put(cellValue.getColumn().getName(), cellValue.getValueObject());
+          genericRecord.put(cellValue.getColumn().getName(), cellValue.getValueObject());
         });
-    return value;
   }
 
   @NotNull
   private GenericRecord constructValue(RowMutationEvent mutationEvent, String topicName) {
-    return constructGenericRecord(
-        mutationEvent.getCells(), schemaProvider.getValueSchemaForTopic(topicName));
+    GenericRecord value = new GenericData.Record(schemaProvider.getValueSchemaForTopic(topicName));
+    fillGenericRecordWithData(mutationEvent.getCells(), value);
+    return value;
   }
 
+  /** All Partition Keys and Clustering Keys must be included in the kafka.key */
   @NotNull
   private GenericRecord constructKey(RowMutationEvent mutationEvent, String topicName) {
-    return constructGenericRecord(
-        mutationEvent.getPartitionKeys(), schemaProvider.getKeySchemaForTopic(topicName));
+    GenericRecord key = new GenericData.Record(schemaProvider.getKeySchemaForTopic(topicName));
+
+    fillGenericRecordWithData(mutationEvent.getPartitionKeys(), key);
+    fillGenericRecordWithData(mutationEvent.getClusteringKeys(), key);
+
+    return key;
   }
 
   @Override

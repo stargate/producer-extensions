@@ -15,6 +15,7 @@
  */
 package io.stargate.producer.kafka;
 
+import static io.stargate.producer.kafka.schema.Schemas.CLUSTERING_KEY_NAME;
 import static io.stargate.producer.kafka.schema.Schemas.COLUMN_NAME;
 import static io.stargate.producer.kafka.schema.Schemas.KEY_SCHEMA;
 import static io.stargate.producer.kafka.schema.Schemas.PARTITION_KEY_NAME;
@@ -91,6 +92,7 @@ class KafkaCDCProducerIntegrationTest {
   public void shouldSendEventWithOnePartitionKeyAndOneValue() throws Exception {
     // given
     String partitionKeyValue = "pk_value";
+    Integer clusteringKeyValue = 1;
     String columnValue = "col_value";
     MappingService mappingService = mock(MappingService.class);
     SchemaProvider schemaProvider = mock(SchemaProvider.class);
@@ -110,15 +112,18 @@ class KafkaCDCProducerIntegrationTest {
         .send(
             createRowMutationEvent(
                 partitionKeyValue,
-                tableMetadata,
+                partitionKey(PARTITION_KEY_NAME),
                 columnValue,
-                stringPartitionKey(PARTITION_KEY_NAME),
-                column(COLUMN_NAME)))
+                column(COLUMN_NAME),
+                clusteringKeyValue,
+                clusteringKey(CLUSTERING_KEY_NAME),
+                tableMetadata))
         .get();
 
     // then
     GenericRecord expectedKey = new GenericData.Record(KEY_SCHEMA);
     expectedKey.put(PARTITION_KEY_NAME, partitionKeyValue);
+    expectedKey.put(CLUSTERING_KEY_NAME, clusteringKeyValue);
     GenericRecord expectedValue = new GenericData.Record(VALUE_SCHEMA);
     expectedValue.put(COLUMN_NAME, columnValue);
 
@@ -133,6 +138,7 @@ class KafkaCDCProducerIntegrationTest {
   public void shouldPropagateErrorWhenKafkaConnectionWasClosed() throws Exception {
     // given
     String partitionKeyValue = "pk_value";
+    Integer clusteringKeyValue = 1;
     String columnValue = "col_value";
     MappingService mappingService = mock(MappingService.class);
     SchemaProvider schemaProvider = mock(SchemaProvider.class);
@@ -157,10 +163,12 @@ class KafkaCDCProducerIntegrationTest {
                     .send(
                         createRowMutationEvent(
                             partitionKeyValue,
-                            tableMetadata,
+                            partitionKey(PARTITION_KEY_NAME),
                             columnValue,
-                            stringPartitionKey(PARTITION_KEY_NAME),
-                            column(COLUMN_NAME)))
+                            column(COLUMN_NAME),
+                            clusteringKeyValue,
+                            clusteringKey(CLUSTERING_KEY_NAME),
+                            tableMetadata))
                     .get();
               })
           .hasRootCauseInstanceOf(TimeoutException.class)
@@ -221,10 +229,12 @@ class KafkaCDCProducerIntegrationTest {
   @NotNull
   private RowMutationEvent createRowMutationEvent(
       String partitionKeyValue,
-      TableMetadata tableMetadata,
-      String value,
       ColumnMetadata partitionKeyMetadata,
-      ColumnMetadata columnMetadata) {
+      String columnValue,
+      ColumnMetadata columnMetadata,
+      Integer clusteringKeyValue,
+      ColumnMetadata clusteringKeyMetadata,
+      TableMetadata tableMetadata) {
     return new RowMutationEvent() {
       @Override
       public TableMetadata getTable() {
@@ -243,7 +253,7 @@ class KafkaCDCProducerIntegrationTest {
 
       @Override
       public List<CellValue> getClusteringKeys() {
-        return null;
+        return Collections.singletonList(cellValue(clusteringKeyValue, clusteringKeyMetadata));
       }
 
       @Override
@@ -267,12 +277,12 @@ class KafkaCDCProducerIntegrationTest {
 
               @Override
               public ByteBuffer getValue() {
-                return ByteBuffer.wrap(value.getBytes(Charsets.UTF_8));
+                return ByteBuffer.wrap(columnValue.getBytes(Charsets.UTF_8));
               }
 
               @Override
               public Object getValueObject() {
-                return value;
+                return columnValue;
               }
             });
       }
@@ -280,11 +290,11 @@ class KafkaCDCProducerIntegrationTest {
   }
 
   @NotNull
-  private CellValue cellValue(String partitionKeyValue, ColumnMetadata columnMetadata) {
+  private CellValue cellValue(Object partitionKeyValue, ColumnMetadata columnMetadata) {
     return new CellValue() {
       @Override
       public ByteBuffer getValue() {
-        return ByteBuffer.wrap(partitionKeyValue.getBytes(Charsets.UTF_8));
+        return null;
       }
 
       @Override
@@ -300,7 +310,7 @@ class KafkaCDCProducerIntegrationTest {
   }
 
   @NotNull
-  private ColumnMetadata stringPartitionKey(String partitionKeyName) {
+  private ColumnMetadata partitionKey(String partitionKeyName) {
 
     return new ColumnMetadata() {
       @Override
@@ -311,6 +321,27 @@ class KafkaCDCProducerIntegrationTest {
       @Override
       public String getName() {
         return partitionKeyName;
+      }
+
+      @Override
+      public CQLType getType() {
+        return Native.TEXT;
+      }
+    };
+  }
+
+  @NotNull
+  private ColumnMetadata clusteringKey(String clusteringKeyName) {
+
+    return new ColumnMetadata() {
+      @Override
+      public Kind getKind() {
+        return Kind.PARTITION_KEY;
+      }
+
+      @Override
+      public String getName() {
+        return clusteringKeyName;
       }
 
       @Override
