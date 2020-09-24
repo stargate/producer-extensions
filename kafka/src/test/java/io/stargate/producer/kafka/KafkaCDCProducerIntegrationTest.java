@@ -15,6 +15,10 @@
  */
 package io.stargate.producer.kafka;
 
+import static io.stargate.producer.kafka.helpers.MutationEventHelper.clusteringKey;
+import static io.stargate.producer.kafka.helpers.MutationEventHelper.column;
+import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowMutationEvent;
+import static io.stargate.producer.kafka.helpers.MutationEventHelper.partitionKey;
 import static io.stargate.producer.kafka.schema.Schemas.CLUSTERING_KEY_NAME;
 import static io.stargate.producer.kafka.schema.Schemas.COLUMN_NAME;
 import static io.stargate.producer.kafka.schema.Schemas.KEY_SCHEMA;
@@ -31,24 +35,15 @@ import io.stargate.producer.kafka.schema.MockKafkaAvroSerializer;
 import io.stargate.producer.kafka.schema.MockKeyKafkaAvroDeserializer;
 import io.stargate.producer.kafka.schema.MockValueKafkaAvroDeserializer;
 import io.stargate.producer.kafka.schema.SchemaProvider;
-import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.cassandra.stargate.db.Cell;
-import org.apache.cassandra.stargate.db.CellValue;
-import org.apache.cassandra.stargate.db.RowMutationEvent;
-import org.apache.cassandra.stargate.schema.CQLType;
-import org.apache.cassandra.stargate.schema.CQLType.Native;
-import org.apache.cassandra.stargate.schema.ColumnMetadata;
 import org.apache.cassandra.stargate.schema.TableMetadata;
-import org.apache.commons.codec.Charsets;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -224,149 +219,5 @@ class KafkaCDCProducerIntegrationTest {
     } finally {
       consumer.close();
     }
-  }
-
-  @NotNull
-  private RowMutationEvent createRowMutationEvent(
-      String partitionKeyValue,
-      ColumnMetadata partitionKeyMetadata,
-      String columnValue,
-      ColumnMetadata columnMetadata,
-      Integer clusteringKeyValue,
-      ColumnMetadata clusteringKeyMetadata,
-      TableMetadata tableMetadata) {
-    return new RowMutationEvent() {
-      @Override
-      public TableMetadata getTable() {
-        return tableMetadata;
-      }
-
-      @Override
-      public long getTimestamp() {
-        return 0;
-      }
-
-      @Override
-      public List<CellValue> getPartitionKeys() {
-        return Collections.singletonList(cellValue(partitionKeyValue, partitionKeyMetadata));
-      }
-
-      @Override
-      public List<CellValue> getClusteringKeys() {
-        return Collections.singletonList(cellValue(clusteringKeyValue, clusteringKeyMetadata));
-      }
-
-      @Override
-      public List<Cell> getCells() {
-        return Collections.singletonList(
-            new Cell() {
-              @Override
-              public int getTTL() {
-                return 0;
-              }
-
-              @Override
-              public boolean isNull() {
-                return false;
-              }
-
-              @Override
-              public ColumnMetadata getColumn() {
-                return columnMetadata;
-              }
-
-              @Override
-              public ByteBuffer getValue() {
-                return ByteBuffer.wrap(columnValue.getBytes(Charsets.UTF_8));
-              }
-
-              @Override
-              public Object getValueObject() {
-                return columnValue;
-              }
-            });
-      }
-    };
-  }
-
-  @NotNull
-  private CellValue cellValue(Object partitionKeyValue, ColumnMetadata columnMetadata) {
-    return new CellValue() {
-      @Override
-      public ByteBuffer getValue() {
-        return null;
-      }
-
-      @Override
-      public Object getValueObject() {
-        return partitionKeyValue;
-      }
-
-      @Override
-      public ColumnMetadata getColumn() {
-        return columnMetadata;
-      }
-    };
-  }
-
-  @NotNull
-  private ColumnMetadata partitionKey(String partitionKeyName) {
-
-    return new ColumnMetadata() {
-      @Override
-      public Kind getKind() {
-        return Kind.PARTITION_KEY;
-      }
-
-      @Override
-      public String getName() {
-        return partitionKeyName;
-      }
-
-      @Override
-      public CQLType getType() {
-        return Native.TEXT;
-      }
-    };
-  }
-
-  @NotNull
-  private ColumnMetadata clusteringKey(String clusteringKeyName) {
-
-    return new ColumnMetadata() {
-      @Override
-      public Kind getKind() {
-        return Kind.PARTITION_KEY;
-      }
-
-      @Override
-      public String getName() {
-        return clusteringKeyName;
-      }
-
-      @Override
-      public CQLType getType() {
-        return Native.TEXT;
-      }
-    };
-  }
-
-  private ColumnMetadata column(String columnName) {
-    return new ColumnMetadata() {
-      @Override
-      public Kind getKind() {
-        return Kind.REGULAR;
-      }
-
-      @Override
-      public String getName() {
-        return columnName;
-      }
-
-      @Override
-      public CQLType getType() {
-        return Native.TEXT;
-      }
-    };
   }
 }
