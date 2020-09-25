@@ -31,6 +31,7 @@ import static org.mockito.Mockito.when;
 
 import com.google.common.collect.Streams;
 import io.stargate.producer.kafka.mapping.MappingService;
+import io.stargate.producer.kafka.schema.KeyValueConstructor;
 import io.stargate.producer.kafka.schema.MockKafkaAvroSerializer;
 import io.stargate.producer.kafka.schema.MockKeyKafkaAvroDeserializer;
 import io.stargate.producer.kafka.schema.MockValueKafkaAvroDeserializer;
@@ -43,6 +44,7 @@ import java.util.Properties;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.cassandra.stargate.db.RowMutationEvent;
 import org.apache.cassandra.stargate.schema.TableMetadata;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -89,6 +91,7 @@ class KafkaCDCProducerIntegrationTest {
     String partitionKeyValue = "pk_value";
     Integer clusteringKeyValue = 1;
     String columnValue = "col_value";
+    long timestamp = 1000;
     MappingService mappingService = mock(MappingService.class);
     SchemaProvider schemaProvider = mock(SchemaProvider.class);
     TableMetadata tableMetadata = mock(TableMetadata.class);
@@ -103,24 +106,24 @@ class KafkaCDCProducerIntegrationTest {
     kafkaCDCProducer.init(properties).get();
 
     // when
-    kafkaCDCProducer
-        .send(
-            createRowMutationEvent(
-                partitionKeyValue,
-                partitionKey(PARTITION_KEY_NAME),
-                columnValue,
-                column(COLUMN_NAME),
-                clusteringKeyValue,
-                clusteringKey(CLUSTERING_KEY_NAME),
-                tableMetadata))
-        .get();
+    RowMutationEvent rowMutationEvent =
+        createRowMutationEvent(
+            partitionKeyValue,
+            partitionKey(PARTITION_KEY_NAME),
+            columnValue,
+            column(COLUMN_NAME),
+            clusteringKeyValue,
+            clusteringKey(CLUSTERING_KEY_NAME),
+            tableMetadata,
+            timestamp);
+    kafkaCDCProducer.send(rowMutationEvent).get();
 
     // then
     GenericRecord expectedKey = new GenericData.Record(KEY_SCHEMA);
     expectedKey.put(PARTITION_KEY_NAME, partitionKeyValue);
     expectedKey.put(CLUSTERING_KEY_NAME, clusteringKeyValue);
-    GenericRecord expectedValue = new GenericData.Record(VALUE_SCHEMA);
-    expectedValue.put(COLUMN_NAME, columnValue);
+    GenericRecord expectedValue =
+        new KeyValueConstructor(schemaProvider).constructValue(rowMutationEvent, TOPIC_NAME);
 
     try {
       validateThatWasSendToKafka(expectedKey, expectedValue);

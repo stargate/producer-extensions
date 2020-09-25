@@ -40,6 +40,87 @@ public class MutationEventHelper {
       Integer clusteringKeyValue,
       ColumnMetadata clusteringKeyMetadata,
       TableMetadata tableMetadata) {
+    return createRowMutationEvent(
+        partitionKeyValue,
+        partitionKeyMetadata,
+        columnValue,
+        columnMetadata,
+        clusteringKeyValue,
+        clusteringKeyMetadata,
+        tableMetadata,
+        0);
+  }
+
+  @NotNull
+  public static RowMutationEvent createRowMutationEventNoPk(
+      String columnValue,
+      ColumnMetadata columnMetadata,
+      Integer clusteringKeyValue,
+      ColumnMetadata clusteringKeyMetadata,
+      TableMetadata tableMetadata) {
+    return createRowMutationEvent(
+        Collections.emptyList(),
+        Collections.singletonList(cell(columnMetadata, columnValue)),
+        Collections.singletonList(cellValue(clusteringKeyValue, clusteringKeyMetadata)),
+        tableMetadata,
+        0);
+  }
+
+  @NotNull
+  public static RowMutationEvent createRowMutationEventNoCK(
+      String partitionKeyValue,
+      ColumnMetadata partitionKeyMetadata,
+      String columnValue,
+      ColumnMetadata columnMetadata,
+      TableMetadata tableMetadata) {
+    return createRowMutationEvent(
+        Collections.singletonList(cellValue(partitionKeyValue, partitionKeyMetadata)),
+        Collections.singletonList(cell(columnMetadata, columnValue)),
+        Collections.emptyList(),
+        tableMetadata,
+        0);
+  }
+
+  @NotNull
+  public static RowMutationEvent createRowMutationEventNoColumns(
+      String partitionKeyValue,
+      ColumnMetadata partitionKeyMetadata,
+      Integer clusteringKeyValue,
+      ColumnMetadata clusteringKeyMetadata,
+      TableMetadata tableMetadata) {
+    return createRowMutationEvent(
+        Collections.singletonList(cellValue(partitionKeyValue, partitionKeyMetadata)),
+        Collections.emptyList(),
+        Collections.singletonList(cellValue(clusteringKeyValue, clusteringKeyMetadata)),
+        tableMetadata,
+        0);
+  }
+
+  @NotNull
+  public static RowMutationEvent createRowMutationEvent(
+      String partitionKeyValue,
+      ColumnMetadata partitionKeyMetadata,
+      String columnValue,
+      ColumnMetadata columnMetadata,
+      Integer clusteringKeyValue,
+      ColumnMetadata clusteringKeyMetadata,
+      TableMetadata tableMetadata,
+      long timestamp) {
+    return createRowMutationEvent(
+        Collections.singletonList(cellValue(partitionKeyValue, partitionKeyMetadata)),
+        Collections.singletonList(cell(columnMetadata, columnValue)),
+        Collections.singletonList(cellValue(clusteringKeyValue, clusteringKeyMetadata)),
+        tableMetadata,
+        timestamp);
+  }
+
+  @NotNull
+  public static RowMutationEvent createRowMutationEvent(
+      List<CellValue> partitionKeys,
+      List<Cell> cells,
+      List<CellValue> clusteringKeys,
+      TableMetadata tableMetadata,
+      long timestamp) {
     return new RowMutationEvent() {
       @Override
       public TableMetadata getTable() {
@@ -48,48 +129,53 @@ public class MutationEventHelper {
 
       @Override
       public long getTimestamp() {
-        return 0;
+        return timestamp;
       }
 
       @Override
       public List<CellValue> getPartitionKeys() {
-        return Collections.singletonList(cellValue(partitionKeyValue, partitionKeyMetadata));
+        return partitionKeys;
       }
 
       @Override
       public List<CellValue> getClusteringKeys() {
-        return Collections.singletonList(cellValue(clusteringKeyValue, clusteringKeyMetadata));
+        return clusteringKeys;
       }
 
       @Override
       public List<Cell> getCells() {
-        return Collections.singletonList(
-            new Cell() {
-              @Override
-              public int getTTL() {
-                return 0;
-              }
+        return cells;
+      }
+    };
+  }
 
-              @Override
-              public boolean isNull() {
-                return false;
-              }
+  @NotNull
+  private static Cell cell(ColumnMetadata columnMetadata, String columnValue) {
 
-              @Override
-              public ColumnMetadata getColumn() {
-                return columnMetadata;
-              }
+    return new Cell() {
+      @Override
+      public int getTTL() {
+        return 0;
+      }
 
-              @Override
-              public ByteBuffer getValue() {
-                return ByteBuffer.wrap(columnValue.getBytes(Charsets.UTF_8));
-              }
+      @Override
+      public boolean isNull() {
+        return false;
+      }
 
-              @Override
-              public Object getValueObject() {
-                return columnValue;
-              }
-            });
+      @Override
+      public ColumnMetadata getColumn() {
+        return columnMetadata;
+      }
+
+      @Override
+      public ByteBuffer getValue() {
+        return ByteBuffer.wrap(columnValue.getBytes(Charsets.UTF_8));
+      }
+
+      @Override
+      public Object getValueObject() {
+        return columnValue;
       }
     };
   }
