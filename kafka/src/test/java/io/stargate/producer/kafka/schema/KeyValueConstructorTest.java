@@ -18,6 +18,9 @@ package io.stargate.producer.kafka.schema;
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.clusteringKey;
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.column;
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowMutationEvent;
+import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowMutationEventNoCK;
+import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowMutationEventNoColumns;
+import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowMutationEventNoPk;
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.partitionKey;
 import static io.stargate.producer.kafka.schema.KeyValueConstructor.DATA_FIELD_NAME;
 import static io.stargate.producer.kafka.schema.KeyValueConstructor.OPERATION_FIELD_NAME;
@@ -60,7 +63,6 @@ class KeyValueConstructorTest {
   public void shouldConstructKey() {
     // given
     SchemaProvider schemaProvider = mock(SchemaProvider.class);
-    TableMetadata tableMetadata = mock(TableMetadata.class);
 
     KeyValueConstructor keyValueConstructor = new KeyValueConstructor(schemaProvider);
     String partitionKeyValue = "pk_value";
@@ -73,7 +75,7 @@ class KeyValueConstructorTest {
             column(COLUMN_NAME),
             clusteringKeyValue,
             clusteringKey(CLUSTERING_KEY_NAME),
-            tableMetadata);
+            mock(TableMetadata.class));
     when(schemaProvider.getKeySchemaForTopic(TOPIC_NAME)).thenReturn(Schemas.KEY_SCHEMA);
 
     // when
@@ -92,7 +94,6 @@ class KeyValueConstructorTest {
   public void shouldThrowWhenConstructingKeyWithNullValue() {
     // given
     SchemaProvider schemaProvider = mock(SchemaProvider.class);
-    TableMetadata tableMetadata = mock(TableMetadata.class);
 
     KeyValueConstructor keyValueConstructor = new KeyValueConstructor(schemaProvider);
     String partitionKeyValue = "pk_value";
@@ -104,7 +105,7 @@ class KeyValueConstructorTest {
             column(COLUMN_NAME),
             null,
             clusteringKey(CLUSTERING_KEY_NAME),
-            tableMetadata);
+            mock(TableMetadata.class));
     when(schemaProvider.getKeySchemaForTopic(TOPIC_NAME)).thenReturn(Schemas.KEY_SCHEMA);
     // when
     GenericRecord genericRecord = keyValueConstructor.constructKey(rowMutationEvent, TOPIC_NAME);
@@ -124,7 +125,6 @@ class KeyValueConstructorTest {
       Optional<String> exceptionMessage) {
     // given
     SchemaProvider schemaProvider = mock(SchemaProvider.class);
-    TableMetadata tableMetadata = mock(TableMetadata.class);
 
     KeyValueConstructor keyValueConstructor = new KeyValueConstructor(schemaProvider);
     long timestamp = 1000;
@@ -136,7 +136,7 @@ class KeyValueConstructorTest {
             column(COLUMN_NAME),
             clusteringKeyValue,
             clusteringKey(CLUSTERING_KEY_NAME),
-            tableMetadata,
+            mock(TableMetadata.class),
             timestamp);
     when(schemaProvider.getValueSchemaForTopic(TOPIC_NAME)).thenReturn(Schemas.VALUE_SCHEMA);
 
@@ -161,6 +161,59 @@ class KeyValueConstructorTest {
     }
   }
 
+  @ParameterizedTest
+  @MethodSource("valueProviderOmittedFields")
+  public void shouldAllowOmittingField(RowMutationEvent rowMutationEvent, String nullColumnName)
+      throws IOException {
+    // given
+    SchemaProvider schemaProvider = mock(SchemaProvider.class);
+    KeyValueConstructor keyValueConstructor = new KeyValueConstructor(schemaProvider);
+    when(schemaProvider.getValueSchemaForTopic(TOPIC_NAME)).thenReturn(Schemas.VALUE_SCHEMA);
+
+    // when
+    GenericRecord genericRecord = keyValueConstructor.constructValue(rowMutationEvent, TOPIC_NAME);
+
+    // then
+    Record data = (Record) genericRecord.get(DATA_FIELD_NAME);
+    assertThat(data.get(nullColumnName)).isNull();
+    validateThatCanWrite(genericRecord, VALUE_SCHEMA);
+  }
+
+  private static Stream<Arguments> valueProviderOmittedFields() {
+    String partitionKeyValue = "pk_value";
+    Integer clusteringKeyValue = 100;
+    String columnValue = "col_value";
+
+    RowMutationEvent rowMutationEventNoPK =
+        createRowMutationEventNoPk(
+            columnValue,
+            column(COLUMN_NAME),
+            clusteringKeyValue,
+            clusteringKey(CLUSTERING_KEY_NAME),
+            mock(TableMetadata.class));
+
+    RowMutationEvent rowMutationEventNoCK =
+        createRowMutationEventNoCK(
+            partitionKeyValue,
+            partitionKey(PARTITION_KEY_NAME),
+            columnValue,
+            column(COLUMN_NAME),
+            mock(TableMetadata.class));
+
+    RowMutationEvent rowMutationEventNoColumns =
+        createRowMutationEventNoColumns(
+            partitionKeyValue,
+            partitionKey(PARTITION_KEY_NAME),
+            clusteringKeyValue,
+            clusteringKey(CLUSTERING_KEY_NAME),
+            mock(TableMetadata.class));
+
+    return Stream.of(
+        Arguments.of(rowMutationEventNoPK, PARTITION_KEY_NAME),
+        Arguments.of(rowMutationEventNoCK, CLUSTERING_KEY_NAME),
+        Arguments.of(rowMutationEventNoColumns, COLUMN_NAME));
+  }
+
   private static Stream<Arguments> valueProvider() {
     String partitionKeyValue = "pk_value";
     Integer clusteringKeyValue = 100;
@@ -172,9 +225,9 @@ class KeyValueConstructorTest {
 
     return Stream.of(
         Arguments.of(partitionKeyValue, clusteringKeyValue, columnValue, noError),
-        Arguments.of(partitionKeyValue, clusteringKeyValue, null, noError),
-        Arguments.of(partitionKeyValue, null, columnValue, missingCK),
-        Arguments.of(null, clusteringKeyValue, columnValue, missingPK));
+        Arguments.of(partitionKeyValue, clusteringKeyValue, null, noError), // null column value
+        Arguments.of(partitionKeyValue, null, columnValue, missingCK), // null clustering key value
+        Arguments.of(null, clusteringKeyValue, columnValue, missingPK)); // null partition key value
   }
 
   private Object getFieldValue(Record data, String fieldName) {
