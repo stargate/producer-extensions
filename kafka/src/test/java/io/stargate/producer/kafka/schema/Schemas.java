@@ -1,6 +1,9 @@
 package io.stargate.producer.kafka.schema;
 
 import static io.stargate.producer.kafka.schema.KeyValueConstructor.DATA_FIELD_NAME;
+import static io.stargate.producer.kafka.schema.KeyValueConstructor.OPERATION_FIELD_NAME;
+import static io.stargate.producer.kafka.schema.KeyValueConstructor.TIMESTAMP_FIELD_NAME;
+import static io.stargate.producer.kafka.schema.KeyValueConstructor.VALUE_FIELD_NAME;
 
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -35,16 +38,23 @@ public class Schemas {
         LogicalTypes.timestampMillis().addToSchema(Schema.create(Schema.Type.LONG));
 
     Schema partitionKey =
-        SchemaBuilder.record(PARTITION_KEY_NAME).fields().requiredString("value").endRecord();
+        SchemaBuilder.record(PARTITION_KEY_NAME)
+            .fields()
+            .requiredString(VALUE_FIELD_NAME)
+            .endRecord();
     Schema partitionKeyNullable =
         SchemaBuilder.unionOf().nullType().and().type(partitionKey).endUnion();
 
     Schema clusteringKey =
-        SchemaBuilder.record(CLUSTERING_KEY_NAME).fields().requiredInt("value").endRecord();
+        SchemaBuilder.record(CLUSTERING_KEY_NAME)
+            .fields()
+            .requiredInt(VALUE_FIELD_NAME)
+            .endRecord();
     Schema clusteringKeyNullable =
         SchemaBuilder.unionOf().nullType().and().type(clusteringKey).endUnion();
 
-    Schema column = SchemaBuilder.record(COLUMN_NAME).fields().optionalString("value").endRecord();
+    Schema column =
+        SchemaBuilder.record(COLUMN_NAME).fields().optionalString(VALUE_FIELD_NAME).endRecord();
     Schema columnNullable = SchemaBuilder.unionOf().nullType().and().type(column).endUnion();
 
     Schema fields =
@@ -65,8 +75,8 @@ public class Schemas {
         SchemaBuilder.record(VALUE_RECORD_NAME)
             .namespace(SCHEMA_NAMESPACE)
             .fields()
-            .requiredString("op")
-            .name("ts_ms")
+            .requiredString(OPERATION_FIELD_NAME)
+            .name(TIMESTAMP_FIELD_NAME)
             .type(timestampMillisType)
             .noDefault()
             .name(DATA_FIELD_NAME)

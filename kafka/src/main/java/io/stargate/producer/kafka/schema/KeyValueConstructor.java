@@ -16,6 +16,7 @@ public class KeyValueConstructor {
   public static final String OPERATION_FIELD_NAME = "op";
   public static final String TIMESTAMP_FIELD_NAME = "ts_ms";
   public static final String DATA_FIELD_NAME = "data";
+  public static final String VALUE_FIELD_NAME = "value";
 
   public KeyValueConstructor(SchemaProvider schemaProvider) {
     this.schemaProvider = schemaProvider;
@@ -78,7 +79,7 @@ public class KeyValueConstructor {
           GenericRecord record =
               new Record(
                   unionSchema.getTypes().get(1)); // 0 - is null type, 1 - is an actual union type
-          record.put("value", pk.getValueObject());
+          record.put(VALUE_FIELD_NAME, pk.getValueObject());
           data.put(columnName, record);
         });
   }
