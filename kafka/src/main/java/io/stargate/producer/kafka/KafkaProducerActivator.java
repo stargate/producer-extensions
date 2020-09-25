@@ -15,18 +15,28 @@
  */
 package io.stargate.producer.kafka;
 
+import io.stargate.db.cdc.CDCProducer;
 import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceEvent;
 import org.osgi.framework.ServiceListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /* Logic for registering the kafka producer as an OSGI bundle */
 public class KafkaProducerActivator implements BundleActivator, ServiceListener {
-  @Override
-  public void start(BundleContext context) throws Exception {}
+  private static final Logger logger = LoggerFactory.getLogger(KafkaProducerActivator.class);
 
   @Override
-  public void stop(BundleContext context) throws Exception {}
+  public void start(BundleContext context) {
+    logger.info("Registering Kafka producer...");
+    // TODO: Set mapping service and schema provider
+    CDCProducer producer = new KafkaCDCProducer(null, null);
+    context.registerService(CDCProducer.class, producer, null);
+  }
+
+  @Override
+  public void stop(BundleContext context) {}
 
   @Override
   public void serviceChanged(ServiceEvent event) {}
