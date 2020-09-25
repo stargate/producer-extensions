@@ -211,7 +211,7 @@ class KafkaCDCProducerIntegrationTest {
 
     try {
       await()
-          .atMost(Duration.ofSeconds(30))
+          .atMost(Duration.ofSeconds(5))
           .until(
               () -> {
                 ConsumerRecords<GenericRecord, GenericRecord> records =
