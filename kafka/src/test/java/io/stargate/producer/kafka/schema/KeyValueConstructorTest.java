@@ -163,8 +163,7 @@ class KeyValueConstructorTest {
 
   @ParameterizedTest
   @MethodSource("valueProviderOmittedFields")
-  public void shouldAllowOmittingField(RowMutationEvent rowMutationEvent, String nullColumnName)
-      throws IOException {
+  public void shouldAllowOmittingField(RowMutationEvent rowMutationEvent, String nullColumnName) {
     // given
     SchemaProvider schemaProvider = mock(SchemaProvider.class);
     KeyValueConstructor keyValueConstructor = new KeyValueConstructor(schemaProvider);
@@ -176,7 +175,8 @@ class KeyValueConstructorTest {
     // then
     Record data = (Record) genericRecord.get(DATA_FIELD_NAME);
     assertThat(data.get(nullColumnName)).isNull();
-    validateThatCanWrite(genericRecord, VALUE_SCHEMA);
+    assertThatCode(() -> validateThatCanWrite(genericRecord, VALUE_SCHEMA))
+        .doesNotThrowAnyException();
   }
 
   private static Stream<Arguments> valueProviderOmittedFields() {
