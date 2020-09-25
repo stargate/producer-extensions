@@ -1,0 +1,161 @@
+/*
+ * Copyright 2018-2020 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.stargate.producer.kafka.schema;
+
+import static io.stargate.producer.kafka.helpers.MutationEventHelper.clusteringKey;
+import static io.stargate.producer.kafka.helpers.MutationEventHelper.column;
+import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowMutationEvent;
+import static io.stargate.producer.kafka.helpers.MutationEventHelper.partitionKey;
+import static io.stargate.producer.kafka.schema.KeyValueConstructor.DATA_FIELD_NAME;
+import static io.stargate.producer.kafka.schema.KeyValueConstructor.OPERATION_FIELD_NAME;
+import static io.stargate.producer.kafka.schema.KeyValueConstructor.TIMESTAMP_FIELD_NAME;
+import static io.stargate.producer.kafka.schema.KeyValueConstructor.VALUE_FIELD_NAME;
+import static io.stargate.producer.kafka.schema.Schemas.CLUSTERING_KEY_NAME;
+import static io.stargate.producer.kafka.schema.Schemas.COLUMN_NAME;
+import static io.stargate.producer.kafka.schema.Schemas.KEY_SCHEMA;
+import static io.stargate.producer.kafka.schema.Schemas.PARTITION_KEY_NAME;
+import static io.stargate.producer.kafka.schema.Schemas.VALUE_SCHEMA;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericData.Record;
+import org.apache.avro.generic.GenericDatumWriter;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.io.BinaryEncoder;
+import org.apache.avro.io.EncoderFactory;
+import org.apache.cassandra.stargate.db.RowMutationEvent;
+import org.apache.cassandra.stargate.schema.TableMetadata;
+import org.junit.jupiter.api.Test;
+
+class KeyValueConstructorTest {
+
+  private static final String TOPIC_NAME = "t1";
+
+  @Test
+  public void shouldConstructKey() {
+    // given
+    SchemaProvider schemaProvider = mock(SchemaProvider.class);
+    TableMetadata tableMetadata = mock(TableMetadata.class);
+
+    KeyValueConstructor keyValueConstructor = new KeyValueConstructor(schemaProvider);
+    String partitionKeyValue = "pk_value";
+    Integer clusteringKeyValue = 100;
+    RowMutationEvent rowMutationEvent =
+        createRowMutationEvent(
+            partitionKeyValue,
+            partitionKey(PARTITION_KEY_NAME),
+            null,
+            column(COLUMN_NAME),
+            clusteringKeyValue,
+            clusteringKey(CLUSTERING_KEY_NAME),
+            tableMetadata);
+    when(schemaProvider.getKeySchemaForTopic(TOPIC_NAME)).thenReturn(Schemas.KEY_SCHEMA);
+
+    // when
+    GenericRecord genericRecord = keyValueConstructor.constructKey(rowMutationEvent, TOPIC_NAME);
+
+    // then
+    GenericRecord expected = new GenericData.Record(KEY_SCHEMA);
+    expected.put(PARTITION_KEY_NAME, partitionKeyValue);
+    expected.put(CLUSTERING_KEY_NAME, clusteringKeyValue);
+    assertThat(genericRecord).isEqualTo(expected);
+    assertThatCode(() -> validateThatCanWrite(genericRecord, KEY_SCHEMA))
+        .doesNotThrowAnyException();
+  }
+
+  @Test
+  public void shouldThrowWhenConstructingKeyWithNullValue() {
+    // given
+    SchemaProvider schemaProvider = mock(SchemaProvider.class);
+    TableMetadata tableMetadata = mock(TableMetadata.class);
+
+    KeyValueConstructor keyValueConstructor = new KeyValueConstructor(schemaProvider);
+    String partitionKeyValue = "pk_value";
+    RowMutationEvent rowMutationEvent =
+        createRowMutationEvent(
+            partitionKeyValue,
+            partitionKey(PARTITION_KEY_NAME),
+            null,
+            column(COLUMN_NAME),
+            null,
+            clusteringKey(CLUSTERING_KEY_NAME),
+            tableMetadata);
+    when(schemaProvider.getKeySchemaForTopic(TOPIC_NAME)).thenReturn(Schemas.KEY_SCHEMA);
+    // when
+    GenericRecord genericRecord = keyValueConstructor.constructKey(rowMutationEvent, TOPIC_NAME);
+
+    // then
+    assertThatThrownBy(() -> validateThatCanWrite(genericRecord, KEY_SCHEMA))
+        .hasMessageContaining(String.format("null of int in field %s", CLUSTERING_KEY_NAME));
+  }
+
+  @Test
+  public void shouldConstructValue() {
+    // given
+    SchemaProvider schemaProvider = mock(SchemaProvider.class);
+    TableMetadata tableMetadata = mock(TableMetadata.class);
+
+    KeyValueConstructor keyValueConstructor = new KeyValueConstructor(schemaProvider);
+    String partitionKeyValue = "pk_value";
+    Integer clusteringKeyValue = 100;
+    String columnValue = "col_value";
+    long timestamp = 1000;
+    RowMutationEvent rowMutationEvent =
+        createRowMutationEvent(
+            partitionKeyValue,
+            partitionKey(PARTITION_KEY_NAME),
+            columnValue,
+            column(COLUMN_NAME),
+            clusteringKeyValue,
+            clusteringKey(CLUSTERING_KEY_NAME),
+            tableMetadata,
+            timestamp);
+    when(schemaProvider.getValueSchemaForTopic(TOPIC_NAME)).thenReturn(Schemas.VALUE_SCHEMA);
+
+    // when
+    GenericRecord genericRecord = keyValueConstructor.constructValue(rowMutationEvent, TOPIC_NAME);
+
+    // then
+    assertThat(genericRecord.get(OPERATION_FIELD_NAME)).isEqualTo(OperationType.UPDATE.getAlias());
+    assertThat(genericRecord.get(TIMESTAMP_FIELD_NAME)).isEqualTo(timestamp);
+    Record data = (Record) genericRecord.get(DATA_FIELD_NAME);
+    assertThat(getFieldValue(data, PARTITION_KEY_NAME)).isEqualTo(partitionKeyValue);
+    assertThat(getFieldValue(data, CLUSTERING_KEY_NAME)).isEqualTo(clusteringKeyValue);
+    assertThat(getFieldValue(data, COLUMN_NAME)).isEqualTo(columnValue);
+
+    assertThatCode(() -> validateThatCanWrite(genericRecord, VALUE_SCHEMA))
+        .doesNotThrowAnyException();
+  }
+
+  private Object getFieldValue(Record data, String fieldName) {
+    return ((Record) data.get(fieldName)).get(VALUE_FIELD_NAME);
+  }
+
+  /** Validates that the GenericRecord complies with the schema. */
+  private void validateThatCanWrite(GenericRecord genericRecord, Schema schema) throws IOException {
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    EncoderFactory encoderFactory = EncoderFactory.get();
+    BinaryEncoder encoder = encoderFactory.directBinaryEncoder(out, null);
+    new GenericDatumWriter<GenericRecord>(schema).write(genericRecord, encoder);
+  }
+}
