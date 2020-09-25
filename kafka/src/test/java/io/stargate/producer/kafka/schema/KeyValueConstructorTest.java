@@ -36,6 +36,8 @@ import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Optional;
+import java.util.stream.Stream;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
@@ -46,6 +48,9 @@ import org.apache.avro.io.EncoderFactory;
 import org.apache.cassandra.stargate.db.RowMutationEvent;
 import org.apache.cassandra.stargate.schema.TableMetadata;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class KeyValueConstructorTest {
 
@@ -109,16 +114,19 @@ class KeyValueConstructorTest {
         .hasMessageContaining(String.format("null of int in field %s", CLUSTERING_KEY_NAME));
   }
 
-  @Test
-  public void shouldConstructValue() {
+  @ParameterizedTest
+  @MethodSource("valueProvider")
+  @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
+  public void shouldConstructValue(
+      String partitionKeyValue,
+      Integer clusteringKeyValue,
+      String columnValue,
+      Optional<String> exceptionMessage) {
     // given
     SchemaProvider schemaProvider = mock(SchemaProvider.class);
     TableMetadata tableMetadata = mock(TableMetadata.class);
 
     KeyValueConstructor keyValueConstructor = new KeyValueConstructor(schemaProvider);
-    String partitionKeyValue = "pk_value";
-    Integer clusteringKeyValue = 100;
-    String columnValue = "col_value";
     long timestamp = 1000;
     RowMutationEvent rowMutationEvent =
         createRowMutationEvent(
@@ -142,9 +150,31 @@ class KeyValueConstructorTest {
     assertThat(getFieldValue(data, PARTITION_KEY_NAME)).isEqualTo(partitionKeyValue);
     assertThat(getFieldValue(data, CLUSTERING_KEY_NAME)).isEqualTo(clusteringKeyValue);
     assertThat(getFieldValue(data, COLUMN_NAME)).isEqualTo(columnValue);
+    System.out.println(data);
+    if (exceptionMessage.isPresent()) {
+      // write should fail because some required field is missing
+      assertThatThrownBy(() -> validateThatCanWrite(genericRecord, VALUE_SCHEMA))
+          .hasMessageContaining(exceptionMessage.get());
+    } else {
+      assertThatCode(() -> validateThatCanWrite(genericRecord, VALUE_SCHEMA))
+          .doesNotThrowAnyException();
+    }
+  }
 
-    assertThatCode(() -> validateThatCanWrite(genericRecord, VALUE_SCHEMA))
-        .doesNotThrowAnyException();
+  private static Stream<Arguments> valueProvider() {
+    String partitionKeyValue = "pk_value";
+    Integer clusteringKeyValue = 100;
+    String columnValue = "col_value";
+    Optional<String> noError = Optional.empty();
+    Optional<String> missingPK =
+        Optional.of(missingRequiredFieldValue(PARTITION_KEY_NAME, "string"));
+    Optional<String> missingCK = Optional.of(missingRequiredFieldValue(CLUSTERING_KEY_NAME, "int"));
+
+    return Stream.of(
+        Arguments.of(partitionKeyValue, clusteringKeyValue, columnValue, noError),
+        Arguments.of(partitionKeyValue, clusteringKeyValue, null, noError),
+        Arguments.of(partitionKeyValue, null, columnValue, missingCK),
+        Arguments.of(null, clusteringKeyValue, columnValue, missingPK));
   }
 
   private Object getFieldValue(Record data, String fieldName) {
@@ -157,5 +187,9 @@ class KeyValueConstructorTest {
     EncoderFactory encoderFactory = EncoderFactory.get();
     BinaryEncoder encoder = encoderFactory.directBinaryEncoder(out, null);
     new GenericDatumWriter<GenericRecord>(schema).write(genericRecord, encoder);
+  }
+
+  private static String missingRequiredFieldValue(String fieldName, String type) {
+    return String.format("null of %s in field value of %s", type, fieldName);
   }
 }
