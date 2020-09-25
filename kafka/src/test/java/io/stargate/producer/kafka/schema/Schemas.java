@@ -1,5 +1,7 @@
 package io.stargate.producer.kafka.schema;
 
+import static io.stargate.producer.kafka.schema.KeyValueConstructor.DATA_FIELD_NAME;
+
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
@@ -10,6 +12,7 @@ public class Schemas {
   public static final String SCHEMA_NAMESPACE = "io.stargate.producer.kafka";
   public static final String KEY_RECORD_NAME = "clusterName.keyspace.table.Key";
   public static final String VALUE_RECORD_NAME = "clusterName.keyspace.table.Value";
+  public static final String DATA_RECORD_NAME = "clusterName.keyspace.table.Data";
   public static final String PARTITION_KEY_NAME = "pk_1";
 
   public static final String COLUMN_NAME = "col_1";
@@ -34,18 +37,18 @@ public class Schemas {
     Schema partitionKey =
         SchemaBuilder.record(PARTITION_KEY_NAME).fields().requiredString("value").endRecord();
     Schema partitionKeyNullable =
-        SchemaBuilder.unionOf().type(partitionKey).and().nullType().endUnion();
+        SchemaBuilder.unionOf().nullType().and().type(partitionKey).endUnion();
 
     Schema clusteringKey =
         SchemaBuilder.record(CLUSTERING_KEY_NAME).fields().requiredInt("value").endRecord();
     Schema clusteringKeyNullable =
-        SchemaBuilder.unionOf().type(clusteringKey).and().nullType().endUnion();
+        SchemaBuilder.unionOf().nullType().and().type(clusteringKey).endUnion();
 
     Schema column = SchemaBuilder.record(COLUMN_NAME).fields().optionalString("value").endRecord();
-    Schema columnNullable = SchemaBuilder.unionOf().type(column).and().nullType().endUnion();
+    Schema columnNullable = SchemaBuilder.unionOf().nullType().and().type(column).endUnion();
 
     Schema fields =
-        SchemaBuilder.record("columns")
+        SchemaBuilder.record(DATA_RECORD_NAME)
             .fields()
             .name(PARTITION_KEY_NAME)
             .type(partitionKeyNullable)
@@ -66,7 +69,7 @@ public class Schemas {
             .name("ts_ms")
             .type(timestampMillisType)
             .noDefault()
-            .name("data")
+            .name(DATA_FIELD_NAME)
             .type(fields)
             .noDefault()
             .endRecord();

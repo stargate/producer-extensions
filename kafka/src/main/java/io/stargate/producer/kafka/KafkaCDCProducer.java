@@ -18,15 +18,13 @@ package io.stargate.producer.kafka;
 import io.stargate.db.cdc.SchemaAwareCDCProducer;
 import io.stargate.producer.kafka.mapping.MappingService;
 import io.stargate.producer.kafka.producer.CompletableKafkaProducer;
+import io.stargate.producer.kafka.schema.KeyValueConstructor;
 import io.stargate.producer.kafka.schema.SchemaProvider;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
-import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.cassandra.stargate.db.CellValue;
 import org.apache.cassandra.stargate.db.MutationEvent;
 import org.apache.cassandra.stargate.db.RowMutationEvent;
 import org.apache.cassandra.stargate.schema.TableMetadata;
@@ -37,13 +35,13 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
 
   private final MappingService mappingService;
 
-  private final SchemaProvider schemaProvider;
+  private final KeyValueConstructor keyValueConstructor;
 
   private CompletableFuture<CompletableKafkaProducer<GenericRecord, GenericRecord>> kafkaProducer;
 
   public KafkaCDCProducer(MappingService mappingService, SchemaProvider schemaProvider) {
     this.mappingService = mappingService;
-    this.schemaProvider = schemaProvider;
+    this.keyValueConstructor = new KeyValueConstructor(schemaProvider);
   }
 
   @Override
@@ -95,35 +93,9 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
       RowMutationEvent mutationEvent) {
     String topicName = mappingService.getTopicNameFromTableMetadata(mutationEvent.getTable());
 
-    GenericRecord key = constructKey(mutationEvent, topicName);
-    GenericRecord value = constructValue(mutationEvent, topicName);
+    GenericRecord key = keyValueConstructor.constructKey(mutationEvent, topicName);
+    GenericRecord value = keyValueConstructor.constructValue(mutationEvent, topicName);
     return new ProducerRecord<>(topicName, key, value);
-  }
-
-  private void fillGenericRecordWithData(
-      List<? extends CellValue> cellValues, GenericRecord genericRecord) {
-    cellValues.forEach(
-        cellValue -> {
-          genericRecord.put(cellValue.getColumn().getName(), cellValue.getValueObject());
-        });
-  }
-
-  @NotNull
-  private GenericRecord constructValue(RowMutationEvent mutationEvent, String topicName) {
-    GenericRecord value = new GenericData.Record(schemaProvider.getValueSchemaForTopic(topicName));
-    fillGenericRecordWithData(mutationEvent.getCells(), value);
-    return value;
-  }
-
-  /** All Partition Keys and Clustering Keys must be included in the kafka.key */
-  @NotNull
-  private GenericRecord constructKey(RowMutationEvent mutationEvent, String topicName) {
-    GenericRecord key = new GenericData.Record(schemaProvider.getKeySchemaForTopic(topicName));
-
-    fillGenericRecordWithData(mutationEvent.getPartitionKeys(), key);
-    fillGenericRecordWithData(mutationEvent.getClusteringKeys(), key);
-
-    return key;
   }
 
   @Override

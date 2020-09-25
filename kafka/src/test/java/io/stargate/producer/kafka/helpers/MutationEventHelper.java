@@ -40,6 +40,27 @@ public class MutationEventHelper {
       Integer clusteringKeyValue,
       ColumnMetadata clusteringKeyMetadata,
       TableMetadata tableMetadata) {
+    return createRowMutationEvent(
+        partitionKeyValue,
+        partitionKeyMetadata,
+        columnValue,
+        columnMetadata,
+        clusteringKeyValue,
+        clusteringKeyMetadata,
+        tableMetadata,
+        0);
+  }
+
+  @NotNull
+  public static RowMutationEvent createRowMutationEvent(
+      String partitionKeyValue,
+      ColumnMetadata partitionKeyMetadata,
+      String columnValue,
+      ColumnMetadata columnMetadata,
+      Integer clusteringKeyValue,
+      ColumnMetadata clusteringKeyMetadata,
+      TableMetadata tableMetadata,
+      long timestamp) {
     return new RowMutationEvent() {
       @Override
       public TableMetadata getTable() {
@@ -48,7 +69,7 @@ public class MutationEventHelper {
 
       @Override
       public long getTimestamp() {
-        return 0;
+        return timestamp;
       }
 
       @Override
