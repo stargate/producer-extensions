@@ -28,7 +28,7 @@ public class KafkaProducerActivator implements BundleActivator, ServiceListener 
   private static final Logger logger = LoggerFactory.getLogger(KafkaProducerActivator.class);
 
   @Override
-  public void start(BundleContext context) {
+  public synchronized void start(BundleContext context) {
     logger.info("Registering Kafka producer...");
     // TODO: Set mapping service and schema provider
     CDCProducer producer = new KafkaCDCProducer(null, null);
@@ -36,8 +36,8 @@ public class KafkaProducerActivator implements BundleActivator, ServiceListener 
   }
 
   @Override
-  public void stop(BundleContext context) {}
+  public synchronized void stop(BundleContext context) {}
 
   @Override
-  public void serviceChanged(ServiceEvent event) {}
+  public synchronized void serviceChanged(ServiceEvent event) {}
 }
