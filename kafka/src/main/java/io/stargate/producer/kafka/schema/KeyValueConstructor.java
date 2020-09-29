@@ -73,14 +73,11 @@ public class KeyValueConstructor {
     return value;
   }
 
-  /** All Partition Keys and Clustering Keys must be included in the kafka.key */
+  /** All Partition Keys must be included in the kafka.key */
   @NotNull
   public GenericRecord constructKey(MutationEvent mutationEvent, String topicName) {
     GenericRecord key = new GenericData.Record(schemaProvider.getKeySchemaForTopic(topicName));
-
     fillGenericRecordWithData(mutationEvent.getPartitionKeys(), key);
-    fillGenericRecordWithData(mutationEvent.getClusteringKeys(), key);
-
     return key;
   }
 

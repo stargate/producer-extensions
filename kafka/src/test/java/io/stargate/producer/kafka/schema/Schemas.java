@@ -28,7 +28,6 @@ public class Schemas {
           .namespace(SCHEMA_NAMESPACE)
           .fields()
           .requiredString(PARTITION_KEY_NAME)
-          .requiredInt(CLUSTERING_KEY_NAME)
           .endRecord();
 
   public static final Schema VALUE_SCHEMA;

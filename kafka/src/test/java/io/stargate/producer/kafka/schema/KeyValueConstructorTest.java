@@ -89,7 +89,6 @@ class KeyValueConstructorTest {
     // then
     GenericRecord expected = new GenericData.Record(KEY_SCHEMA);
     expected.put(PARTITION_KEY_NAME, partitionKeyValue);
-    expected.put(CLUSTERING_KEY_NAME, clusteringKeyValue);
     assertThat(genericRecord).isEqualTo(expected);
     assertThatCode(() -> validateThatCanWrite(genericRecord, KEY_SCHEMA))
         .doesNotThrowAnyException();
@@ -101,10 +100,9 @@ class KeyValueConstructorTest {
     SchemaProvider schemaProvider = mock(SchemaProvider.class);
 
     KeyValueConstructor keyValueConstructor = new KeyValueConstructor(schemaProvider);
-    String partitionKeyValue = "pk_value";
     RowUpdateEvent rowMutationEvent =
         createRowUpdateEvent(
-            partitionKeyValue,
+            null,
             partitionKey(PARTITION_KEY_NAME),
             null,
             column(COLUMN_NAME),
@@ -117,7 +115,7 @@ class KeyValueConstructorTest {
 
     // then
     assertThatThrownBy(() -> validateThatCanWrite(genericRecord, KEY_SCHEMA))
-        .hasMessageContaining(String.format("null of int in field %s", CLUSTERING_KEY_NAME));
+        .hasMessageContaining(String.format("null of string in field %s", PARTITION_KEY_NAME));
   }
 
   @ParameterizedTest
@@ -272,9 +270,8 @@ class KeyValueConstructorTest {
     Integer clusteringKeyValue = 100;
     String columnValue = "col_value";
     Optional<String> noError = Optional.empty();
-    Optional<String> missingPK =
-        Optional.of(missingRequiredFieldValue(PARTITION_KEY_NAME, "string"));
-    Optional<String> missingCK = Optional.of(missingRequiredFieldValue(CLUSTERING_KEY_NAME, "int"));
+    Optional<String> missingPK = Optional.of(missingRequiredFieldStringValue(PARTITION_KEY_NAME));
+    Optional<String> missingCK = Optional.of(missingRequiredFieldIntValue(CLUSTERING_KEY_NAME));
 
     return Stream.of(
         Arguments.of(partitionKeyValue, clusteringKeyValue, columnValue, noError),
@@ -307,6 +304,14 @@ class KeyValueConstructorTest {
     EncoderFactory encoderFactory = EncoderFactory.get();
     BinaryEncoder encoder = encoderFactory.directBinaryEncoder(out, null);
     new GenericDatumWriter<GenericRecord>(schema).write(genericRecord, encoder);
+  }
+
+  private static String missingRequiredFieldStringValue(String fieldName) {
+    return missingRequiredFieldValue(fieldName, "string");
+  }
+
+  private static String missingRequiredFieldIntValue(String fieldName) {
+    return missingRequiredFieldValue(fieldName, "int");
   }
 
   private static String missingRequiredFieldValue(String fieldName, String type) {

@@ -123,7 +123,7 @@ class KafkaCDCProducerIntegrationTest {
     // then
     GenericRecord expectedKey = new GenericData.Record(KEY_SCHEMA);
     expectedKey.put(PARTITION_KEY_NAME, partitionKeyValue);
-    expectedKey.put(CLUSTERING_KEY_NAME, clusteringKeyValue);
+
     GenericRecord expectedValue =
         new KeyValueConstructor(schemaProvider).constructValue(rowMutationEvent, TOPIC_NAME);
 
@@ -213,7 +213,7 @@ class KafkaCDCProducerIntegrationTest {
     // then
     GenericRecord expectedKey = new GenericData.Record(KEY_SCHEMA);
     expectedKey.put(PARTITION_KEY_NAME, partitionKeyValue);
-    expectedKey.put(CLUSTERING_KEY_NAME, clusteringKeyValue);
+
     GenericRecord expectedValue =
         new KeyValueConstructor(schemaProvider).constructValue(event, TOPIC_NAME);
 
