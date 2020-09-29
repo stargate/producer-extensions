@@ -17,6 +17,7 @@ package io.stargate.producer.kafka.schema;
 
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.clusteringKey;
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.column;
+import static io.stargate.producer.kafka.helpers.MutationEventHelper.createDeleteEvent;
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowUpdateEvent;
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowUpdateEventNoCK;
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowUpdateEventNoColumns;
@@ -48,6 +49,7 @@ import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.EncoderFactory;
+import org.apache.cassandra.stargate.db.MutationEvent;
 import org.apache.cassandra.stargate.db.RowUpdateEvent;
 import org.apache.cassandra.stargate.schema.TableMetadata;
 import org.junit.jupiter.api.Test;
@@ -67,7 +69,7 @@ class KeyValueConstructorTest {
     KeyValueConstructor keyValueConstructor = new KeyValueConstructor(schemaProvider);
     String partitionKeyValue = "pk_value";
     Integer clusteringKeyValue = 100;
-    RowUpdateEvent rowMutationEvent =
+    MutationEvent rowMutationEvent =
         createRowUpdateEvent(
             partitionKeyValue,
             partitionKey(PARTITION_KEY_NAME),
@@ -116,9 +118,9 @@ class KeyValueConstructorTest {
   }
 
   @ParameterizedTest
-  @MethodSource("valueProvider")
+  @MethodSource("updateValueProvider")
   @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-  public void shouldConstructValue(
+  public void shouldConstructUpdateValue(
       String partitionKeyValue,
       Integer clusteringKeyValue,
       String columnValue,
@@ -150,6 +152,45 @@ class KeyValueConstructorTest {
     assertThat(getFieldValue(data, PARTITION_KEY_NAME)).isEqualTo(partitionKeyValue);
     assertThat(getFieldValue(data, CLUSTERING_KEY_NAME)).isEqualTo(clusteringKeyValue);
     assertThat(getFieldValue(data, COLUMN_NAME)).isEqualTo(columnValue);
+    if (exceptionMessage.isPresent()) {
+      // write should fail because some required field is missing
+      assertThatThrownBy(() -> validateThatCanWrite(genericRecord, VALUE_SCHEMA))
+          .hasMessageContaining(exceptionMessage.get());
+    } else {
+      assertThatCode(() -> validateThatCanWrite(genericRecord, VALUE_SCHEMA))
+          .doesNotThrowAnyException();
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("deleteValueProvider")
+  @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
+  public void shouldConstructDeleteValue(
+      String partitionKeyValue, Integer clusteringKeyValue, Optional<String> exceptionMessage) {
+    // given
+    SchemaProvider schemaProvider = mock(SchemaProvider.class);
+
+    KeyValueConstructor keyValueConstructor = new KeyValueConstructor(schemaProvider);
+    long timestamp = 1000;
+    MutationEvent event =
+        createDeleteEvent(
+            partitionKeyValue,
+            partitionKey(PARTITION_KEY_NAME),
+            clusteringKeyValue,
+            clusteringKey(CLUSTERING_KEY_NAME),
+            mock(TableMetadata.class),
+            timestamp);
+    when(schemaProvider.getValueSchemaForTopic(TOPIC_NAME)).thenReturn(Schemas.VALUE_SCHEMA);
+
+    // when
+    GenericRecord genericRecord = keyValueConstructor.constructValue(event, TOPIC_NAME);
+
+    // then
+    assertThat(genericRecord.get(OPERATION_FIELD_NAME)).isEqualTo(OperationType.DELETE.getAlias());
+    assertThat(genericRecord.get(TIMESTAMP_FIELD_NAME)).isEqualTo(timestamp);
+    Record data = (Record) genericRecord.get(DATA_FIELD_NAME);
+    assertThat(getFieldValue(data, PARTITION_KEY_NAME)).isEqualTo(partitionKeyValue);
+    assertThat(getFieldValue(data, CLUSTERING_KEY_NAME)).isEqualTo(clusteringKeyValue);
     if (exceptionMessage.isPresent()) {
       // write should fail because some required field is missing
       assertThatThrownBy(() -> validateThatCanWrite(genericRecord, VALUE_SCHEMA))
@@ -213,7 +254,7 @@ class KeyValueConstructorTest {
         Arguments.of(rowMutationEventNoColumns, COLUMN_NAME));
   }
 
-  private static Stream<Arguments> valueProvider() {
+  private static Stream<Arguments> updateValueProvider() {
     String partitionKeyValue = "pk_value";
     Integer clusteringKeyValue = 100;
     String columnValue = "col_value";
@@ -227,6 +268,20 @@ class KeyValueConstructorTest {
         Arguments.of(partitionKeyValue, clusteringKeyValue, null, noError), // null column value
         Arguments.of(partitionKeyValue, null, columnValue, missingCK), // null clustering key value
         Arguments.of(null, clusteringKeyValue, columnValue, missingPK)); // null partition key value
+  }
+
+  private static Stream<Arguments> deleteValueProvider() {
+    String partitionKeyValue = "pk_value";
+    Integer clusteringKeyValue = 100;
+    Optional<String> noError = Optional.empty();
+    Optional<String> missingPK =
+        Optional.of(missingRequiredFieldValue(PARTITION_KEY_NAME, "string"));
+    Optional<String> missingCK = Optional.of(missingRequiredFieldValue(CLUSTERING_KEY_NAME, "int"));
+
+    return Stream.of(
+        Arguments.of(partitionKeyValue, clusteringKeyValue, noError),
+        Arguments.of(partitionKeyValue, null, missingCK), // null clustering key value
+        Arguments.of(null, clusteringKeyValue, missingPK)); // null partition key value
   }
 
   private Object getFieldValue(Record data, String fieldName) {
