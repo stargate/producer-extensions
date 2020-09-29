@@ -21,7 +21,7 @@ import java.util.Collections;
 import java.util.List;
 import org.apache.cassandra.stargate.db.Cell;
 import org.apache.cassandra.stargate.db.CellValue;
-import org.apache.cassandra.stargate.db.RowMutationEvent;
+import org.apache.cassandra.stargate.db.RowUpdateEvent;
 import org.apache.cassandra.stargate.schema.CQLType;
 import org.apache.cassandra.stargate.schema.CQLType.Native;
 import org.apache.cassandra.stargate.schema.ColumnMetadata;
@@ -32,7 +32,7 @@ import org.jetbrains.annotations.NotNull;
 public class MutationEventHelper {
 
   @NotNull
-  public static RowMutationEvent createRowMutationEvent(
+  public static RowUpdateEvent createRowMutationEvent(
       String partitionKeyValue,
       ColumnMetadata partitionKeyMetadata,
       String columnValue,
@@ -52,7 +52,7 @@ public class MutationEventHelper {
   }
 
   @NotNull
-  public static RowMutationEvent createRowMutationEventNoPk(
+  public static RowUpdateEvent createRowMutationEventNoPk(
       String columnValue,
       ColumnMetadata columnMetadata,
       Integer clusteringKeyValue,
@@ -67,7 +67,7 @@ public class MutationEventHelper {
   }
 
   @NotNull
-  public static RowMutationEvent createRowMutationEventNoCK(
+  public static RowUpdateEvent createRowMutationEventNoCK(
       String partitionKeyValue,
       ColumnMetadata partitionKeyMetadata,
       String columnValue,
@@ -82,7 +82,7 @@ public class MutationEventHelper {
   }
 
   @NotNull
-  public static RowMutationEvent createRowMutationEventNoColumns(
+  public static RowUpdateEvent createRowMutationEventNoColumns(
       String partitionKeyValue,
       ColumnMetadata partitionKeyMetadata,
       Integer clusteringKeyValue,
@@ -97,7 +97,7 @@ public class MutationEventHelper {
   }
 
   @NotNull
-  public static RowMutationEvent createRowMutationEvent(
+  public static RowUpdateEvent createRowMutationEvent(
       String partitionKeyValue,
       ColumnMetadata partitionKeyMetadata,
       String columnValue,
@@ -115,13 +115,13 @@ public class MutationEventHelper {
   }
 
   @NotNull
-  public static RowMutationEvent createRowMutationEvent(
+  public static RowUpdateEvent createRowMutationEvent(
       List<CellValue> partitionKeys,
       List<Cell> cells,
       List<CellValue> clusteringKeys,
       TableMetadata tableMetadata,
       long timestamp) {
-    return new RowMutationEvent() {
+    return new RowUpdateEvent() {
       @Override
       public TableMetadata getTable() {
         return tableMetadata;

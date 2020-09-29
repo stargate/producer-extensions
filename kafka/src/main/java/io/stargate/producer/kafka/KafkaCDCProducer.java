@@ -26,7 +26,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.cassandra.stargate.db.MutationEvent;
-import org.apache.cassandra.stargate.db.RowMutationEvent;
+import org.apache.cassandra.stargate.db.RowUpdateEvent;
 import org.apache.cassandra.stargate.schema.TableMetadata;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.jetbrains.annotations.NotNull;
@@ -64,8 +64,8 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
   protected CompletableFuture<Void> send(MutationEvent mutationEvent) {
     return kafkaProducer.thenCompose(
         producer -> {
-          if (mutationEvent instanceof RowMutationEvent) {
-            return handleRowMutationEvent((RowMutationEvent) mutationEvent, producer);
+          if (mutationEvent instanceof RowUpdateEvent) {
+            return handleRowMutationEvent((RowUpdateEvent) mutationEvent, producer);
           } else {
             return handleNotSupportedEventType(mutationEvent);
           }
@@ -74,7 +74,7 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
 
   @NotNull
   private CompletionStage<Void> handleRowMutationEvent(
-      RowMutationEvent mutationEvent,
+      RowUpdateEvent mutationEvent,
       CompletableKafkaProducer<GenericRecord, GenericRecord> producer) {
     ProducerRecord<GenericRecord, GenericRecord> producerRecord = toProducerRecord(mutationEvent);
     return producer.sendAsync(producerRecord).thenAccept(toVoid());
@@ -90,7 +90,7 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
   }
 
   private ProducerRecord<GenericRecord, GenericRecord> toProducerRecord(
-      RowMutationEvent mutationEvent) {
+      RowUpdateEvent mutationEvent) {
     String topicName = mappingService.getTopicNameFromTableMetadata(mutationEvent.getTable());
 
     GenericRecord key = keyValueConstructor.constructKey(mutationEvent, topicName);

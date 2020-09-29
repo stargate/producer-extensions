@@ -48,7 +48,7 @@ import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.EncoderFactory;
-import org.apache.cassandra.stargate.db.RowMutationEvent;
+import org.apache.cassandra.stargate.db.RowUpdateEvent;
 import org.apache.cassandra.stargate.schema.TableMetadata;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -67,7 +67,7 @@ class KeyValueConstructorTest {
     KeyValueConstructor keyValueConstructor = new KeyValueConstructor(schemaProvider);
     String partitionKeyValue = "pk_value";
     Integer clusteringKeyValue = 100;
-    RowMutationEvent rowMutationEvent =
+    RowUpdateEvent rowMutationEvent =
         createRowMutationEvent(
             partitionKeyValue,
             partitionKey(PARTITION_KEY_NAME),
@@ -97,7 +97,7 @@ class KeyValueConstructorTest {
 
     KeyValueConstructor keyValueConstructor = new KeyValueConstructor(schemaProvider);
     String partitionKeyValue = "pk_value";
-    RowMutationEvent rowMutationEvent =
+    RowUpdateEvent rowMutationEvent =
         createRowMutationEvent(
             partitionKeyValue,
             partitionKey(PARTITION_KEY_NAME),
@@ -128,7 +128,7 @@ class KeyValueConstructorTest {
 
     KeyValueConstructor keyValueConstructor = new KeyValueConstructor(schemaProvider);
     long timestamp = 1000;
-    RowMutationEvent rowMutationEvent =
+    RowUpdateEvent rowMutationEvent =
         createRowMutationEvent(
             partitionKeyValue,
             partitionKey(PARTITION_KEY_NAME),
@@ -150,7 +150,6 @@ class KeyValueConstructorTest {
     assertThat(getFieldValue(data, PARTITION_KEY_NAME)).isEqualTo(partitionKeyValue);
     assertThat(getFieldValue(data, CLUSTERING_KEY_NAME)).isEqualTo(clusteringKeyValue);
     assertThat(getFieldValue(data, COLUMN_NAME)).isEqualTo(columnValue);
-    System.out.println(data);
     if (exceptionMessage.isPresent()) {
       // write should fail because some required field is missing
       assertThatThrownBy(() -> validateThatCanWrite(genericRecord, VALUE_SCHEMA))
@@ -163,7 +162,7 @@ class KeyValueConstructorTest {
 
   @ParameterizedTest
   @MethodSource("valueProviderOmittedFields")
-  public void shouldAllowOmittingField(RowMutationEvent rowMutationEvent, String nullColumnName) {
+  public void shouldAllowOmittingField(RowUpdateEvent rowMutationEvent, String nullColumnName) {
     // given
     SchemaProvider schemaProvider = mock(SchemaProvider.class);
     KeyValueConstructor keyValueConstructor = new KeyValueConstructor(schemaProvider);
@@ -184,7 +183,7 @@ class KeyValueConstructorTest {
     Integer clusteringKeyValue = 100;
     String columnValue = "col_value";
 
-    RowMutationEvent rowMutationEventNoPK =
+    RowUpdateEvent rowMutationEventNoPK =
         createRowMutationEventNoPk(
             columnValue,
             column(COLUMN_NAME),
@@ -192,7 +191,7 @@ class KeyValueConstructorTest {
             clusteringKey(CLUSTERING_KEY_NAME),
             mock(TableMetadata.class));
 
-    RowMutationEvent rowMutationEventNoCK =
+    RowUpdateEvent rowMutationEventNoCK =
         createRowMutationEventNoCK(
             partitionKeyValue,
             partitionKey(PARTITION_KEY_NAME),
@@ -200,7 +199,7 @@ class KeyValueConstructorTest {
             column(COLUMN_NAME),
             mock(TableMetadata.class));
 
-    RowMutationEvent rowMutationEventNoColumns =
+    RowUpdateEvent rowMutationEventNoColumns =
         createRowMutationEventNoColumns(
             partitionKeyValue,
             partitionKey(PARTITION_KEY_NAME),

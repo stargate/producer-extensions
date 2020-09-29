@@ -44,7 +44,7 @@ import java.util.Properties;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.cassandra.stargate.db.RowMutationEvent;
+import org.apache.cassandra.stargate.db.RowUpdateEvent;
 import org.apache.cassandra.stargate.schema.TableMetadata;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -106,7 +106,7 @@ class KafkaCDCProducerIntegrationTest {
     kafkaCDCProducer.init(properties).get();
 
     // when
-    RowMutationEvent rowMutationEvent =
+    RowUpdateEvent rowMutationEvent =
         createRowMutationEvent(
             partitionKeyValue,
             partitionKey(PARTITION_KEY_NAME),

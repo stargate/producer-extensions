@@ -22,7 +22,7 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.cassandra.stargate.db.CellValue;
-import org.apache.cassandra.stargate.db.RowMutationEvent;
+import org.apache.cassandra.stargate.db.RowUpdateEvent;
 import org.jetbrains.annotations.NotNull;
 
 public class KeyValueConstructor {
@@ -38,7 +38,7 @@ public class KeyValueConstructor {
   }
 
   @NotNull
-  public GenericRecord constructValue(RowMutationEvent mutationEvent, String topicName) {
+  public GenericRecord constructValue(RowUpdateEvent mutationEvent, String topicName) {
     Schema schema = schemaProvider.getValueSchemaForTopic(topicName);
     GenericRecord value = new GenericData.Record(schema);
 
@@ -69,7 +69,7 @@ public class KeyValueConstructor {
 
   /** All Partition Keys and Clustering Keys must be included in the kafka.key */
   @NotNull
-  public GenericRecord constructKey(RowMutationEvent mutationEvent, String topicName) {
+  public GenericRecord constructKey(RowUpdateEvent mutationEvent, String topicName) {
     GenericRecord key = new GenericData.Record(schemaProvider.getKeySchemaForTopic(topicName));
 
     fillGenericRecordWithData(mutationEvent.getPartitionKeys(), key);

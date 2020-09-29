@@ -4,7 +4,7 @@
   <parent>
     <groupId>io.stargate</groupId>
     <artifactId>stargate</artifactId>
-    <version>0.0.8-SNAPSHOT</version>
+    <version>0.0.11-SNAPSHOT</version>
   </parent>
   <groupId>io.stargate.producer</groupId>
   <artifactId>producer-extensions</artifactId>
