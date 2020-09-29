@@ -166,6 +166,28 @@ public class MutationEventHelper {
   }
 
   @NotNull
+  public static DeleteEvent createDeleteEventNoPk(
+      Integer clusteringKeyValue,
+      ColumnMetadata clusteringKeyMetadata,
+      TableMetadata tableMetadata) {
+    return createDeleteEvent(
+        Collections.emptyList(),
+        Collections.singletonList(cellValue(clusteringKeyValue, clusteringKeyMetadata)),
+        tableMetadata,
+        0);
+  }
+
+  @NotNull
+  public static DeleteEvent createDeleteEventNoCk(
+      String partitionKeyValue, ColumnMetadata partitionKeyMetadata, TableMetadata tableMetadata) {
+    return createDeleteEvent(
+        Collections.singletonList(cellValue(partitionKeyValue, partitionKeyMetadata)),
+        Collections.emptyList(),
+        tableMetadata,
+        0);
+  }
+
+  @NotNull
   public static DeleteEvent createDeleteEvent(
       List<CellValue> partitionKeys,
       List<CellValue> clusteringKeys,

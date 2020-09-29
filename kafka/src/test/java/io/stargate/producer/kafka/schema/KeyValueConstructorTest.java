@@ -18,6 +18,8 @@ package io.stargate.producer.kafka.schema;
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.clusteringKey;
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.column;
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.createDeleteEvent;
+import static io.stargate.producer.kafka.helpers.MutationEventHelper.createDeleteEventNoCk;
+import static io.stargate.producer.kafka.helpers.MutationEventHelper.createDeleteEventNoPk;
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowUpdateEvent;
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowUpdateEventNoCK;
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowUpdateEventNoColumns;
@@ -49,6 +51,7 @@ import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.EncoderFactory;
+import org.apache.cassandra.stargate.db.DeleteEvent;
 import org.apache.cassandra.stargate.db.MutationEvent;
 import org.apache.cassandra.stargate.db.RowUpdateEvent;
 import org.apache.cassandra.stargate.schema.TableMetadata;
@@ -203,7 +206,7 @@ class KeyValueConstructorTest {
 
   @ParameterizedTest
   @MethodSource("valueProviderOmittedFields")
-  public void shouldAllowOmittingField(RowUpdateEvent rowMutationEvent, String nullColumnName) {
+  public void shouldAllowOmittingField(MutationEvent rowMutationEvent, String nullColumnName) {
     // given
     SchemaProvider schemaProvider = mock(SchemaProvider.class);
     KeyValueConstructor keyValueConstructor = new KeyValueConstructor(schemaProvider);
@@ -224,7 +227,7 @@ class KeyValueConstructorTest {
     Integer clusteringKeyValue = 100;
     String columnValue = "col_value";
 
-    RowUpdateEvent rowMutationEventNoPK =
+    RowUpdateEvent rowUpdateEventNoPK =
         createRowUpdateEventNoPk(
             columnValue,
             column(COLUMN_NAME),
@@ -232,7 +235,7 @@ class KeyValueConstructorTest {
             clusteringKey(CLUSTERING_KEY_NAME),
             mock(TableMetadata.class));
 
-    RowUpdateEvent rowMutationEventNoCK =
+    RowUpdateEvent rowUpdateEventNoCK =
         createRowUpdateEventNoCK(
             partitionKeyValue,
             partitionKey(PARTITION_KEY_NAME),
@@ -240,7 +243,7 @@ class KeyValueConstructorTest {
             column(COLUMN_NAME),
             mock(TableMetadata.class));
 
-    RowUpdateEvent rowMutationEventNoColumns =
+    RowUpdateEvent rowUpdateEventNoColumns =
         createRowUpdateEventNoColumns(
             partitionKeyValue,
             partitionKey(PARTITION_KEY_NAME),
@@ -248,10 +251,20 @@ class KeyValueConstructorTest {
             clusteringKey(CLUSTERING_KEY_NAME),
             mock(TableMetadata.class));
 
+    DeleteEvent deleteEventNoPK =
+        createDeleteEventNoPk(
+            clusteringKeyValue, clusteringKey(CLUSTERING_KEY_NAME), mock(TableMetadata.class));
+
+    DeleteEvent deleteEventNoCK =
+        createDeleteEventNoCk(
+            partitionKeyValue, clusteringKey(PARTITION_KEY_NAME), mock(TableMetadata.class));
+
     return Stream.of(
-        Arguments.of(rowMutationEventNoPK, PARTITION_KEY_NAME),
-        Arguments.of(rowMutationEventNoCK, CLUSTERING_KEY_NAME),
-        Arguments.of(rowMutationEventNoColumns, COLUMN_NAME));
+        Arguments.of(rowUpdateEventNoPK, PARTITION_KEY_NAME),
+        Arguments.of(rowUpdateEventNoCK, CLUSTERING_KEY_NAME),
+        Arguments.of(rowUpdateEventNoColumns, COLUMN_NAME),
+        Arguments.of(deleteEventNoPK, PARTITION_KEY_NAME),
+        Arguments.of(deleteEventNoCK, CLUSTERING_KEY_NAME));
   }
 
   private static Stream<Arguments> updateValueProvider() {
