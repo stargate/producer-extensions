@@ -17,7 +17,8 @@ package io.stargate.producer.kafka;
 
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.clusteringKey;
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.column;
-import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowMutationEvent;
+import static io.stargate.producer.kafka.helpers.MutationEventHelper.createDeleteEvent;
+import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowUpdateEvent;
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.partitionKey;
 import static io.stargate.producer.kafka.schema.Schemas.CLUSTERING_KEY_NAME;
 import static io.stargate.producer.kafka.schema.Schemas.COLUMN_NAME;
@@ -44,6 +45,7 @@ import java.util.Properties;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.cassandra.stargate.db.DeleteEvent;
 import org.apache.cassandra.stargate.db.RowUpdateEvent;
 import org.apache.cassandra.stargate.schema.TableMetadata;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -86,7 +88,7 @@ class KafkaCDCProducerIntegrationTest {
   }
 
   @Test
-  public void shouldSendEventWithOnePartitionKeyAndOneValue() throws Exception {
+  public void shouldSendUpdateEventWithOnePartitionKeyAndOneValue() throws Exception {
     // given
     String partitionKeyValue = "pk_value";
     Integer clusteringKeyValue = 1;
@@ -107,7 +109,7 @@ class KafkaCDCProducerIntegrationTest {
 
     // when
     RowUpdateEvent rowMutationEvent =
-        createRowMutationEvent(
+        createRowUpdateEvent(
             partitionKeyValue,
             partitionKey(PARTITION_KEY_NAME),
             columnValue,
@@ -159,7 +161,7 @@ class KafkaCDCProducerIntegrationTest {
               () -> {
                 kafkaCDCProducer
                     .send(
-                        createRowMutationEvent(
+                        createRowUpdateEvent(
                             partitionKeyValue,
                             partitionKey(PARTITION_KEY_NAME),
                             columnValue,
@@ -174,6 +176,50 @@ class KafkaCDCProducerIntegrationTest {
     } finally {
       // resume connections
       kafkaProxy.setConnectionCut(false);
+      kafkaCDCProducer.close().get();
+    }
+  }
+
+  @Test
+  public void shouldSendDeleteEventForAllPKsAndCK() throws Exception {
+    // given
+    String partitionKeyValue = "pk_value";
+    Integer clusteringKeyValue = 1;
+    long timestamp = 1234;
+    MappingService mappingService = mock(MappingService.class);
+    SchemaProvider schemaProvider = mock(SchemaProvider.class);
+    TableMetadata tableMetadata = mock(TableMetadata.class);
+
+    when(mappingService.getTopicNameFromTableMetadata(tableMetadata)).thenReturn(TOPIC_NAME);
+
+    when(schemaProvider.getKeySchemaForTopic(TOPIC_NAME)).thenReturn(KEY_SCHEMA);
+    when(schemaProvider.getValueSchemaForTopic(TOPIC_NAME)).thenReturn(VALUE_SCHEMA);
+
+    KafkaCDCProducer kafkaCDCProducer = new KafkaCDCProducer(mappingService, schemaProvider);
+    Map<String, Object> properties = createKafkaProducerSettings();
+    kafkaCDCProducer.init(properties).get();
+
+    // when
+    DeleteEvent event =
+        createDeleteEvent(
+            partitionKeyValue,
+            partitionKey(PARTITION_KEY_NAME),
+            clusteringKeyValue,
+            clusteringKey(CLUSTERING_KEY_NAME),
+            tableMetadata,
+            timestamp);
+    kafkaCDCProducer.send(event).get();
+
+    // then
+    GenericRecord expectedKey = new GenericData.Record(KEY_SCHEMA);
+    expectedKey.put(PARTITION_KEY_NAME, partitionKeyValue);
+    expectedKey.put(CLUSTERING_KEY_NAME, clusteringKeyValue);
+    GenericRecord expectedValue =
+        new KeyValueConstructor(schemaProvider).constructValue(event, TOPIC_NAME);
+
+    try {
+      validateThatWasSendToKafka(expectedKey, expectedValue);
+    } finally {
       kafkaCDCProducer.close().get();
     }
   }

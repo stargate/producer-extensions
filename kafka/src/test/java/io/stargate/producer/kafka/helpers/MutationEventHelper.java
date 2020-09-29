@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.List;
 import org.apache.cassandra.stargate.db.Cell;
 import org.apache.cassandra.stargate.db.CellValue;
+import org.apache.cassandra.stargate.db.DeleteEvent;
 import org.apache.cassandra.stargate.db.RowUpdateEvent;
 import org.apache.cassandra.stargate.schema.CQLType;
 import org.apache.cassandra.stargate.schema.CQLType.Native;
@@ -32,7 +33,7 @@ import org.jetbrains.annotations.NotNull;
 public class MutationEventHelper {
 
   @NotNull
-  public static RowUpdateEvent createRowMutationEvent(
+  public static RowUpdateEvent createRowUpdateEvent(
       String partitionKeyValue,
       ColumnMetadata partitionKeyMetadata,
       String columnValue,
@@ -40,7 +41,7 @@ public class MutationEventHelper {
       Integer clusteringKeyValue,
       ColumnMetadata clusteringKeyMetadata,
       TableMetadata tableMetadata) {
-    return createRowMutationEvent(
+    return createRowUpdateEvent(
         partitionKeyValue,
         partitionKeyMetadata,
         columnValue,
@@ -52,13 +53,13 @@ public class MutationEventHelper {
   }
 
   @NotNull
-  public static RowUpdateEvent createRowMutationEventNoPk(
+  public static RowUpdateEvent createRowUpdateEventNoPk(
       String columnValue,
       ColumnMetadata columnMetadata,
       Integer clusteringKeyValue,
       ColumnMetadata clusteringKeyMetadata,
       TableMetadata tableMetadata) {
-    return createRowMutationEvent(
+    return createRowUpdateEvent(
         Collections.emptyList(),
         Collections.singletonList(cell(columnMetadata, columnValue)),
         Collections.singletonList(cellValue(clusteringKeyValue, clusteringKeyMetadata)),
@@ -67,13 +68,13 @@ public class MutationEventHelper {
   }
 
   @NotNull
-  public static RowUpdateEvent createRowMutationEventNoCK(
+  public static RowUpdateEvent createRowUpdateEventNoCK(
       String partitionKeyValue,
       ColumnMetadata partitionKeyMetadata,
       String columnValue,
       ColumnMetadata columnMetadata,
       TableMetadata tableMetadata) {
-    return createRowMutationEvent(
+    return createRowUpdateEvent(
         Collections.singletonList(cellValue(partitionKeyValue, partitionKeyMetadata)),
         Collections.singletonList(cell(columnMetadata, columnValue)),
         Collections.emptyList(),
@@ -82,13 +83,13 @@ public class MutationEventHelper {
   }
 
   @NotNull
-  public static RowUpdateEvent createRowMutationEventNoColumns(
+  public static RowUpdateEvent createRowUpdateEventNoColumns(
       String partitionKeyValue,
       ColumnMetadata partitionKeyMetadata,
       Integer clusteringKeyValue,
       ColumnMetadata clusteringKeyMetadata,
       TableMetadata tableMetadata) {
-    return createRowMutationEvent(
+    return createRowUpdateEvent(
         Collections.singletonList(cellValue(partitionKeyValue, partitionKeyMetadata)),
         Collections.emptyList(),
         Collections.singletonList(cellValue(clusteringKeyValue, clusteringKeyMetadata)),
@@ -97,7 +98,7 @@ public class MutationEventHelper {
   }
 
   @NotNull
-  public static RowUpdateEvent createRowMutationEvent(
+  public static RowUpdateEvent createRowUpdateEvent(
       String partitionKeyValue,
       ColumnMetadata partitionKeyMetadata,
       String columnValue,
@@ -106,7 +107,7 @@ public class MutationEventHelper {
       ColumnMetadata clusteringKeyMetadata,
       TableMetadata tableMetadata,
       long timestamp) {
-    return createRowMutationEvent(
+    return createRowUpdateEvent(
         Collections.singletonList(cellValue(partitionKeyValue, partitionKeyMetadata)),
         Collections.singletonList(cell(columnMetadata, columnValue)),
         Collections.singletonList(cellValue(clusteringKeyValue, clusteringKeyMetadata)),
@@ -115,7 +116,7 @@ public class MutationEventHelper {
   }
 
   @NotNull
-  public static RowUpdateEvent createRowMutationEvent(
+  public static RowUpdateEvent createRowUpdateEvent(
       List<CellValue> partitionKeys,
       List<Cell> cells,
       List<CellValue> clusteringKeys,
@@ -145,6 +146,50 @@ public class MutationEventHelper {
       @Override
       public List<Cell> getCells() {
         return cells;
+      }
+    };
+  }
+
+  @NotNull
+  public static DeleteEvent createDeleteEvent(
+      String partitionKeyValue,
+      ColumnMetadata partitionKeyMetadata,
+      Integer clusteringKeyValue,
+      ColumnMetadata clusteringKeyMetadata,
+      TableMetadata tableMetadata,
+      long timestamp) {
+    return createDeleteEvent(
+        Collections.singletonList(cellValue(partitionKeyValue, partitionKeyMetadata)),
+        Collections.singletonList(cellValue(clusteringKeyValue, clusteringKeyMetadata)),
+        tableMetadata,
+        timestamp);
+  }
+
+  @NotNull
+  public static DeleteEvent createDeleteEvent(
+      List<CellValue> partitionKeys,
+      List<CellValue> clusteringKeys,
+      TableMetadata tableMetadata,
+      long timestamp) {
+    return new DeleteEvent() {
+      @Override
+      public List<CellValue> getPartitionKeys() {
+        return partitionKeys;
+      }
+
+      @Override
+      public List<CellValue> getClusteringKeys() {
+        return clusteringKeys;
+      }
+
+      @Override
+      public TableMetadata getTable() {
+        return tableMetadata;
+      }
+
+      @Override
+      public long getTimestamp() {
+        return timestamp;
       }
     };
   }

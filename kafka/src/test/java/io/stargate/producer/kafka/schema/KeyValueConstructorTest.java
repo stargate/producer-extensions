@@ -17,10 +17,10 @@ package io.stargate.producer.kafka.schema;
 
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.clusteringKey;
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.column;
-import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowMutationEvent;
-import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowMutationEventNoCK;
-import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowMutationEventNoColumns;
-import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowMutationEventNoPk;
+import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowUpdateEvent;
+import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowUpdateEventNoCK;
+import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowUpdateEventNoColumns;
+import static io.stargate.producer.kafka.helpers.MutationEventHelper.createRowUpdateEventNoPk;
 import static io.stargate.producer.kafka.helpers.MutationEventHelper.partitionKey;
 import static io.stargate.producer.kafka.schema.KeyValueConstructor.DATA_FIELD_NAME;
 import static io.stargate.producer.kafka.schema.KeyValueConstructor.OPERATION_FIELD_NAME;
@@ -68,7 +68,7 @@ class KeyValueConstructorTest {
     String partitionKeyValue = "pk_value";
     Integer clusteringKeyValue = 100;
     RowUpdateEvent rowMutationEvent =
-        createRowMutationEvent(
+        createRowUpdateEvent(
             partitionKeyValue,
             partitionKey(PARTITION_KEY_NAME),
             null,
@@ -98,7 +98,7 @@ class KeyValueConstructorTest {
     KeyValueConstructor keyValueConstructor = new KeyValueConstructor(schemaProvider);
     String partitionKeyValue = "pk_value";
     RowUpdateEvent rowMutationEvent =
-        createRowMutationEvent(
+        createRowUpdateEvent(
             partitionKeyValue,
             partitionKey(PARTITION_KEY_NAME),
             null,
@@ -129,7 +129,7 @@ class KeyValueConstructorTest {
     KeyValueConstructor keyValueConstructor = new KeyValueConstructor(schemaProvider);
     long timestamp = 1000;
     RowUpdateEvent rowMutationEvent =
-        createRowMutationEvent(
+        createRowUpdateEvent(
             partitionKeyValue,
             partitionKey(PARTITION_KEY_NAME),
             columnValue,
@@ -184,7 +184,7 @@ class KeyValueConstructorTest {
     String columnValue = "col_value";
 
     RowUpdateEvent rowMutationEventNoPK =
-        createRowMutationEventNoPk(
+        createRowUpdateEventNoPk(
             columnValue,
             column(COLUMN_NAME),
             clusteringKeyValue,
@@ -192,7 +192,7 @@ class KeyValueConstructorTest {
             mock(TableMetadata.class));
 
     RowUpdateEvent rowMutationEventNoCK =
-        createRowMutationEventNoCK(
+        createRowUpdateEventNoCK(
             partitionKeyValue,
             partitionKey(PARTITION_KEY_NAME),
             columnValue,
@@ -200,7 +200,7 @@ class KeyValueConstructorTest {
             mock(TableMetadata.class));
 
     RowUpdateEvent rowMutationEventNoColumns =
-        createRowMutationEventNoColumns(
+        createRowUpdateEventNoColumns(
             partitionKeyValue,
             partitionKey(PARTITION_KEY_NAME),
             clusteringKeyValue,
