@@ -25,6 +25,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.cassandra.stargate.db.DeleteEvent;
 import org.apache.cassandra.stargate.db.MutationEvent;
 import org.apache.cassandra.stargate.db.RowUpdateEvent;
 import org.apache.cassandra.stargate.schema.TableMetadata;
@@ -65,7 +66,9 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
     return kafkaProducer.thenCompose(
         producer -> {
           if (mutationEvent instanceof RowUpdateEvent) {
-            return handleRowMutationEvent((RowUpdateEvent) mutationEvent, producer);
+            return handleRowUpdateEvent((RowUpdateEvent) mutationEvent, producer);
+          } else if (mutationEvent instanceof DeleteEvent) {
+            return handleDeleteEvent((DeleteEvent) mutationEvent, producer);
           } else {
             return handleNotSupportedEventType(mutationEvent);
           }
@@ -73,7 +76,14 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
   }
 
   @NotNull
-  private CompletionStage<Void> handleRowMutationEvent(
+  private CompletionStage<Void> handleDeleteEvent(
+      DeleteEvent mutationEvent, CompletableKafkaProducer<GenericRecord, GenericRecord> producer) {
+    ProducerRecord<GenericRecord, GenericRecord> producerRecord = toProducerRecord(mutationEvent);
+    return producer.sendAsync(producerRecord).thenAccept(toVoid());
+  }
+
+  @NotNull
+  private CompletionStage<Void> handleRowUpdateEvent(
       RowUpdateEvent mutationEvent,
       CompletableKafkaProducer<GenericRecord, GenericRecord> producer) {
     ProducerRecord<GenericRecord, GenericRecord> producerRecord = toProducerRecord(mutationEvent);
@@ -91,6 +101,14 @@ public class KafkaCDCProducer extends SchemaAwareCDCProducer {
 
   private ProducerRecord<GenericRecord, GenericRecord> toProducerRecord(
       RowUpdateEvent mutationEvent) {
+    String topicName = mappingService.getTopicNameFromTableMetadata(mutationEvent.getTable());
+
+    GenericRecord key = keyValueConstructor.constructKey(mutationEvent, topicName);
+    GenericRecord value = keyValueConstructor.constructValue(mutationEvent, topicName);
+    return new ProducerRecord<>(topicName, key, value);
+  }
+
+  private ProducerRecord<GenericRecord, GenericRecord> toProducerRecord(DeleteEvent mutationEvent) {
     String topicName = mappingService.getTopicNameFromTableMetadata(mutationEvent.getTable());
 
     GenericRecord key = keyValueConstructor.constructKey(mutationEvent, topicName);

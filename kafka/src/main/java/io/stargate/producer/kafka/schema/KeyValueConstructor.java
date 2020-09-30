@@ -22,6 +22,8 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.cassandra.stargate.db.CellValue;
+import org.apache.cassandra.stargate.db.DeleteEvent;
+import org.apache.cassandra.stargate.db.MutationEvent;
 import org.apache.cassandra.stargate.db.RowUpdateEvent;
 import org.jetbrains.annotations.NotNull;
 
@@ -38,7 +40,7 @@ public class KeyValueConstructor {
   }
 
   @NotNull
-  public GenericRecord constructValue(RowUpdateEvent mutationEvent, String topicName) {
+  public GenericRecord constructValue(MutationEvent mutationEvent, String topicName) {
     Schema schema = schemaProvider.getValueSchemaForTopic(topicName);
     GenericRecord value = new GenericData.Record(schema);
 
@@ -58,23 +60,24 @@ public class KeyValueConstructor {
 
     createUnionAndAppendToData(mutationEvent.getPartitionKeys(), dataSchema, data);
     createUnionAndAppendToData(mutationEvent.getClusteringKeys(), dataSchema, data);
-    createUnionAndAppendToData(mutationEvent.getCells(), dataSchema, data);
+    if (mutationEvent instanceof RowUpdateEvent) {
+      createUnionAndAppendToData(((RowUpdateEvent) mutationEvent).getCells(), dataSchema, data);
+      value.put(OPERATION_FIELD_NAME, OperationType.UPDATE.getAlias());
+    } else if (mutationEvent instanceof DeleteEvent) {
+      value.put(OPERATION_FIELD_NAME, OperationType.DELETE.getAlias());
+    }
 
-    value.put(OPERATION_FIELD_NAME, OperationType.UPDATE.getAlias());
     value.put(TIMESTAMP_FIELD_NAME, mutationEvent.getTimestamp());
     value.put(DATA_FIELD_NAME, data);
 
     return value;
   }
 
-  /** All Partition Keys and Clustering Keys must be included in the kafka.key */
+  /** All Partition Keys must be included in the kafka.key */
   @NotNull
-  public GenericRecord constructKey(RowUpdateEvent mutationEvent, String topicName) {
+  public GenericRecord constructKey(MutationEvent mutationEvent, String topicName) {
     GenericRecord key = new GenericData.Record(schemaProvider.getKeySchemaForTopic(topicName));
-
     fillGenericRecordWithData(mutationEvent.getPartitionKeys(), key);
-    fillGenericRecordWithData(mutationEvent.getClusteringKeys(), key);
-
     return key;
   }
 
