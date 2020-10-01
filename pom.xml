@@ -4,7 +4,7 @@
   <parent>
     <groupId>io.stargate</groupId>
     <artifactId>stargate</artifactId>
-    <version>0.0.7</version>
+    <version>0.0.11-SNAPSHOT</version>
   </parent>
   <groupId>io.stargate.producer</groupId>
   <artifactId>producer-extensions</artifactId>
@@ -194,6 +194,19 @@
       <organization>Stargate</organization>
     </developer>
   </developers>
+  <repositories>
+    <repository>
+      <id>Confluent</id>
+      <name>Confluent</name>
+      <url>http://packages.confluent.io/maven/</url>
+      <releases>
+        <enabled>true</enabled>
+      </releases>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+    </repository>
+  </repositories>
   <distributionManagement>
     <repository>
       <id>ossrh</id>

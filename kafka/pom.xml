@@ -10,19 +10,63 @@
   <artifactId>producer-kafka</artifactId>
   <properties>
     <junit.version>5.6.2</junit.version>
-    <kafka-clients.version>2.6.0</kafka-clients.version>
+    <kafka-clients.version>5.5.1-ce</kafka-clients.version>
+    <avro.version>1.10.0</avro.version>
+    <kafka-avro-serializer.version>5.5.1</kafka-avro-serializer.version>
   </properties>
   <dependencies>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>1.7.30</version>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>log4j-over-slf4j</artifactId>
+      <version>1.7.30</version>
+    </dependency>
     <dependency>
       <groupId>org.apache.kafka</groupId>
       <artifactId>kafka-clients</artifactId>
       <version>${kafka-clients.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-api</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.avro</groupId>
+      <artifactId>avro</artifactId>
+      <version>${avro.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.confluent</groupId>
+      <artifactId>kafka-avro-serializer</artifactId>
+      <version>${kafka-avro-serializer.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-log4j12</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.stargate.db</groupId>
       <artifactId>persistence-api</artifactId>
-      <version>0.0.7</version>
+      <version>0.0.11-SNAPSHOT</version>
       <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <version>1.2.3</version>
+    </dependency>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-core</artifactId>
+      <version>1.2.3</version>
     </dependency>
     <dependency>
       <groupId>org.gridkit.jvmtool</groupId>
@@ -59,15 +103,33 @@
       </exclusions>
     </dependency>
     <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>3.17.2</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>org.testcontainers</groupId>
-      <artifactId>testcontainers</artifactId>
+      <artifactId>kafka</artifactId>
       <version>1.14.3</version>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.assertj</groupId>
-      <artifactId>assertj-core</artifactId>
-      <version>3.17.2</version>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <version>3.5.10</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.awaitility</groupId>
+      <artifactId>awaitility</artifactId>
+      <version>4.0.3</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>toxiproxy</artifactId>
+      <version>1.14.3</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -153,7 +215,11 @@
             <Bundle-Description>Kafka producer component for project</Bundle-Description>
             <Bundle-SymbolicName>io.stargate.producer.kafka</Bundle-SymbolicName>
             <Bundle-Activator>io.stargate.producer.kafka.KafkaProducerActivator</Bundle-Activator>
-            <Import-Package>org.osgi.framework, io.stargate.producer, io.stargate.producer.kafka, io.stargate.producer.kafka.*, !com.codahale.metrics.graphite.*</Import-Package>
+            <Import-Package><![CDATA[
+              org.osgi.framework,
+              io.stargate.db,
+              ]]>
+            </Import-Package>
             <Export-Package>io.stargate.producer.kafka</Export-Package>
             <DynamicImport-Package>*</DynamicImport-Package>
             <Bundle-ClassPath>.,sjk-core-0.14.jar,{maven-dependencies}</Bundle-ClassPath>
